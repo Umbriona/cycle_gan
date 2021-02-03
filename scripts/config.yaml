@@ -1,0 +1,37 @@
+CycleGan:
+    Vocab_size: 21
+    lambda_cycle: 1
+    lambda_id: 0.5
+    Generator:
+        type: res
+        layers: 6
+        filters: [64, 64, 128, 128, 256, 256]
+        kernels: [3, 3, 3, 3, 3, 3]
+        dilations: [1, 1, 1, 1, 1, 1]
+        use_attention: True
+        learning_rate: 0.00001
+        beta_1: 0.5
+    Discriminator:
+        layers: 6
+        filters: [64, 64, 128, 128, 256, 256]
+        kernels: [3, 3, 3, 3, 3, 3]
+        dilations: [1, 1, 1, 1, 1, 1]
+        strides: [1, 1, 2, 2, 2, 2]
+        use_attention: True
+        learning_rate: 0.00001
+        beta_1: 0.5
+Classifyer:
+    Vocab_size: 21
+    filters:
+    kernels:
+    dilations:
+    strides:
+    use_attention: True
+    file: "../weights/model_ogt"
+Data:
+    file_thermo: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_70_81.fasta"
+    file_meso: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_4_15.fasta"
+    max_samples: 10
+    seq_length: 512
+    
+    

@@ -4,6 +4,13 @@ import os
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
+def synt2binary(seq):
+    bin_seq = np.zeros((100,5), dtype=np.float32)
+
+    for i in range(100):
+        bin_seq[i, seq[i]] += 1 
+    return bin_seq
+
 def to_binary(seq, max_length, start_stop = False):
     # eoncode non-standard amino acids like X as all zeros
     # output a array with size of L*20
@@ -68,7 +75,7 @@ def zero_padding(inp,length=500,start=False):
         out[0:inp.shape[0]] = inp[:length,:]
     return out
 
-def prepare_dataset(file_path, file_name, file_format = 'fasta', seq_length = 1024, t_v_split = 0.1,start_stop = False, max_samples = 5000):
+def prepare_dataset(file_name, file_format = 'fasta', seq_length = 1024, t_v_split = 0.1,start_stop = False, max_samples = 5000):
     
     if start_stop:
         seq_length -= 2
@@ -76,7 +83,7 @@ def prepare_dataset(file_path, file_name, file_format = 'fasta', seq_length = 10
     count=0
     dict_ = {'id':[] ,'mask':[],'seq':[], 'mask_bin':[], 'seq_bin':[], 'loss_weight':[], 'seq_int':[]}
     # loading data to dict
-    for i, rec in enumerate(SeqIO.parse(os.path.join(file_path,file_name),'fasta')):
+    for i, rec in enumerate(SeqIO.parse(file_name, file_format)):
         count +=1
         if count >max_samples:
             break
@@ -101,10 +108,11 @@ def prepare_dataset(file_path, file_name, file_format = 'fasta', seq_length = 10
                                                     np.array(dict_['seq_bin'], dtype = np.float32),
                                                     dict_['id'],
                                                     test_size=t_v_split, random_state=42)
-   
+    n_train = int_train.shape[0]
+    n_test  = int_test.shape[0]
     dataset_train = tf.data.Dataset.from_tensor_slices((int_train,bin_train,W_train))
     dataset_validate = tf.data.Dataset.from_tensor_slices((int_test,bin_test,W_test))
-    return dataset_train, dataset_validate
+    return dataset_train, dataset_validate, n_train, n_test
     
 def prepare_dataset_U_N(file_path, file_name, file_format = 'fasta', seq_length = 1024, t_v_split = 0.1):
     
@@ -133,4 +141,100 @@ def prepare_dataset_U_N(file_path, file_name, file_format = 'fasta', seq_length 
    
     dataset_train = tf.data.Dataset.from_tensor_slices((int_train,bin_train,W_train))
     dataset_validate = tf.data.Dataset.from_tensor_slices((int_test,bin_test,W_test))
+    return dataset_train, dataset_validate, 
+
+def calc_class(val):
+    if val <=15:
+        return 0
+  #  elif val > 15 and val<=26:
+  #      return 1
+    elif val > 26 and val<=37:
+        return 1
+   # elif val > 37 and val<=48:
+  #      return 3
+    elif val > 48 and val<=59:
+        return 2
+   # elif val > 59 and val<=70:
+   #     return 5
+    elif val > 70:
+        return 3
+
+
+def prepare_dataset_class(file_path, file_names,
+                               file_format = 'fasta', 
+                               seq_length = 1024,
+                               t_v_split = 0.1,
+                               max_samples = 5000):
+    
+    
+
+    dict_ = {'id':[] ,
+             'ogt':[],
+             'mask':[],
+             'seq':[], 
+             'mask_bin':[],
+             'seq_bin':[],
+             'loss_weight':[],
+             'seq_int':[]}
+    # loading data to dict
+    for name in file_names:
+        count = 0
+        for i, rec in enumerate(SeqIO.parse(os.path.join(file_path, name),'fasta')):
+            if len(rec.seq)>seq_length:
+                continue
+            if count >max_samples:
+                break
+            count += 1
+            dict_['id'].append(rec.id)
+            c = calc_class(float(rec.description.split()[-1]))
+            arr = np.zeros((4,))
+            arr[c] = 1
+            dict_['ogt'].append(arr)
+            dict_['seq_bin'].append(to_binary(str(rec.seq), max_length=seq_length))
+        print(name, count)
+   # Splitting data to training and validation sets
+    bin_train, bin_test, ogt_train, ogt_test = train_test_split(np.array(dict_['seq_bin'], dtype = np.float32),
+                                                                 np.array(dict_['ogt'], dtype = np.float32),
+                                                                 test_size=t_v_split, random_state=42)
+
+    dataset_train = tf.data.Dataset.from_tensor_slices((bin_train, ogt_train))
+    dataset_validate = tf.data.Dataset.from_tensor_slices((bin_test,ogt_test))
+    return dataset_train, dataset_validate
+
+def prepare_dataset_reg(file_path, file_names,
+                               file_format = 'fasta', 
+                               seq_length = 1024,
+                               t_v_split = 0.1,
+                               max_samples = 5000):
+    
+    
+
+    dict_ = {'id':[] ,
+             'ogt':[],
+             'mask':[],
+             'seq':[], 
+             'mask_bin':[],
+             'seq_bin':[],
+             'loss_weight':[],
+             'seq_int':[]}
+    # loading data to dict
+    for name in file_names:
+        count = 0
+        for i, rec in enumerate(SeqIO.parse(os.path.join(file_path, name),'fasta')):
+            if len(rec.seq)>seq_length:
+                continue
+            if count >max_samples:
+                break
+            count += 1
+            dict_['id'].append(rec.id)
+            dict_['ogt'].append(float(rec.description.split()[-1])-41.9)
+            dict_['seq_bin'].append(to_binary(str(rec.seq), max_length=seq_length))
+        print(name, count)
+   # Splitting data to training and validation sets
+    bin_train, bin_test, ogt_train, ogt_test = train_test_split(np.array(dict_['seq_bin'], dtype = np.float32),
+                                                                 np.array(dict_['ogt'], dtype = np.float32),
+                                                                 test_size=t_v_split, random_state=42)
+
+    dataset_train = tf.data.Dataset.from_tensor_slices((bin_train, ogt_train))
+    dataset_validate = tf.data.Dataset.from_tensor_slices((bin_test,ogt_test))
     return dataset_train, dataset_validate

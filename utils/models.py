@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.regularizers import L1L2
-from tensorflow.keras.layers import LSTM, Dense, Flatten, Input, Dropout, BatchNormalization, Concatenate, Conv1D, MaxPool1D, Dot, Layer, Embedding, Add
+from tensorflow.keras.layers import LSTM, Dense, Flatten, Input, Dropout, BatchNormalization, LayerNormalization, Concatenate, LeakyReLU, Conv1D, MaxPool1D, Dot, Layer, Embedding, Add
 from utils.layers import Conv1DTranspose, UNetModule, UNetModule_res, UNetModule_ins, Angularization, DownSampleMod_res
 from tensorflow.keras.activations import relu, elu
 VOCAB_SIZE = 21
@@ -11,13 +11,14 @@ VOCAB_SIZE = 21
 class SelfAttention(Layer):
     def __init__(self, filters):
         super(SelfAttention, self).__init__()
+        
+        init_ = tf.keras.initializers.Constant(value=1)
+        self.gamma = self.add_weight(name='gamma', initializer=init_, trainable=True)
+        
+    def build(self, )
         self.kernel_querry = Conv1D(filters, 1)
         self.kernel_key    = Conv1D(filters, 1)
         self.kernel_value  = Conv1D(filters, 1)
-        
-        self.gamma = self.add_weight(name='gamma', initializer=tf.keras.initializers.Constant(
-    value=1
-), trainable=True)
         
     def call(self, x, mask=None):
         
@@ -38,15 +39,17 @@ class UpsampleMod_s_res(Layer):
                 size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, use_max_pool = False):
         super(UpsampleMod_s_res, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
         self.reg3 = L1L2(l1=l1, l2=l2)
         self.reg4 = L1L2(l1=l1, l2=l2)
+        
+        self.act = LeakyReLU()
         
         self.add = Add()
         self.concat = Concatenate(axis=2)
@@ -67,12 +70,12 @@ class UpsampleMod_s_res(Layer):
     
     def call(self, x, training=None):
         x = self.u_sample(x)
-        x = relu(self.bn1(x, training=training))
+        x = self.act(self.bn1(x, training=training))
         x_c = self.conv1(x)
-        x = relu(self.bn2(x, training=training))
-        x = relu(self.bn3(self.conv2(x),training=training))
+        x = self.act(self.bn2(x, training=training))
+        x = self.act(self.bn3(self.conv2(x),training=training))
         x = self.conv3(x)
-        x = relu(self.bn4(self.add([x_c, x]),training=training))
+        x = self.act(self.bn4(self.add([x_c, x]),training=training))
         return self.dOut(x, training=training)  
 
 
@@ -90,7 +93,7 @@ class U_net(Model):
             self.u_net_module = UNetModule_ins(self.h_parameters)
         if emb:
             self.embedding = Embedding(VOCAB_SIZE, self.h_parameters['emb_size'])
-            self.bn_embedding = BatchNormalization()
+            self.bn_embedding = LayerNormalization()
         self.conv_out = Conv1D(VOCAB_SIZE, self.h_parameters['kernel_size'][-1]
                                ,activation=self.h_parameters['output_activation'], padding='same'
                                ,kernel_regularizer = reg, name='out1')
@@ -106,7 +109,7 @@ class U_net(Model):
             x = self.u_net_module(x, training = training)
             out = self.conv_out(x)
         return out
-
+"""
 class Discriminator(Model):
     def __init__(self, p):
         super(Discriminator,self).__init__()
@@ -126,20 +129,43 @@ class Discriminator(Model):
         self.mod3 = DownSampleMod_res(num_filter[2], size_filter[2], sampling_stride[2], use_max_pool=False, l1 = l1[2], l2 = l2[2], rate = 0.0, sample=True)
         self.mod4 = DownSampleMod_res(num_filter[0], size_filter[0], sampling_stride[0], use_max_pool=False, l1 = l1[0], l2 = l2[0], rate = 0.0, sample=True)
         
-        self.attention = SelfAttention(num_filter[0])
+        #self.attention = SelfAttention(21)
         self.flatten = tf.keras.layers.Flatten()
         self.out = Dense(1, activation='sigmoid')
         
     def call(self, x, training=True):
+        #x, a_w = self.attention(x)
+        #print('x_in',x)
         x = self.mod1(x, training = training)
-        x, a_w = self.attention(x[0])
-        x = self.mod2(x, training = training)
+        #print('x_1', x[0])
+        x = self.mod2(x[0], training = training)
+        #print('x_2', x[0])
         x = self.mod3(x[0], training = training)
+        #print('x_3', x[0])
         x = self.mod4(x[0], training = training)
         x = self.flatten(x[0])
+        #print('x_out',x)
         out = self.out(x)
-        return out, a_w
-    
+        return out, 1 #, a_w
+"""  
+
+class Discriminator(Model):
+    def __init__(self, p):
+        super(Discriminator,self).__init__()
+        self.conv1 = Conv1D(32,4, strides = 2, activation= 'relu')
+        self.conv2 = Conv1D(32,4, strides = 2, activation= 'relu')
+        self.conv3 = Conv1D(32,4, strides = 2, activation= 'relu')
+        self.conv4 = Conv1D(32,4, strides = 2, activation= 'relu')
+        self.flatten = tf.keras.layers.Flatten()
+        self.out = Dense(1, activation= 'sigmoid')
+        
+    def call(self, x, training):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.flatten(x)
+        return self.out(x), 1
     
 class Discriminator_conv(Model):
     def __init__(self, p):
@@ -161,7 +187,6 @@ class Discriminator_conv(Model):
         self.mod4 = DownSampleMod_res(num_filter[0], size_filter[0], sampling_stride[3], use_max_pool=False, l1 = l1[0], l2 = l2[0], rate = 0.0, sample=True)
         
         self.attention = SelfAttention(num_filter[0])
-        self.flatten = tf.keras.layers.Flatten()
         self.out = Conv1D(1, 3, activation='sigmoid')
         
     def call(self, x, training=True):
@@ -169,7 +194,7 @@ class Discriminator_conv(Model):
         x, a_w = self.attention(x[0])
         x = self.mod2(x, training = training)
         x = self.mod3(x[0], training = training)
-        x = self.mod4(x[0], training = training)
+        x = self.mod4(x[0], training = training) 
         out = self.out(x[0])
         return out , a_w
     

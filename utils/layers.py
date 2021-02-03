@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.keras.layers import Layer, Conv2DTranspose, Lambda, Dense, LayerNormalization, Dropout, Concatenate, Conv1D, MaxPool1D, BatchNormalization, UpSampling1D, Add
+from tensorflow.keras.layers import Layer, Conv2DTranspose, Lambda, Dense, LayerNormalization, Dropout, Concatenate, Conv1D, MaxPool1D, BatchNormalization, UpSampling1D, Add, LeakyReLU
 from tensorflow.keras import Sequential
 from tensorflow.keras.regularizers import L1L2
 import tensorflow.keras.backend as K
@@ -201,15 +201,17 @@ class DownSampleMod(Layer):
                  pool_size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, sample=True):
         super(DownSampleMod, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
         self.reg3 = L1L2(l1=l1, l2=l2)
         
         self.add = Add()
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(num_filter, size_filter, activation=None, padding='same',
                             kernel_regularizer = self.reg1, bias_regularizer = self.reg1)
@@ -224,10 +226,10 @@ class DownSampleMod(Layer):
         self.sample = sample
     
     def call(self, inp, training = None):
-        x = relu(self.bn1(self.conv1(inp), training=training))
-        out_enc = relu(self.bn2(self.conv2(x), training=training))   
+        x = self.act(self.bn1(self.conv1(inp), training=training))
+        out_enc = self.act(self.bn2(self.conv2(x), training=training))   
         if self.sample:
-            out = elu(self.bn3(self.d_sample(out_enc),training=training))               
+            out = self.act(self.bn3(self.d_sample(out_enc),training=training))               
         else:
             out = out_enc
         
@@ -239,10 +241,10 @@ class DownSampleMod_res(Layer):
                  pool_size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, sample=True):
         super(DownSampleMod_res, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
@@ -250,6 +252,8 @@ class DownSampleMod_res(Layer):
         self.reg4 = L1L2(l1=l1, l2=l2)
         
         self.add = Add()
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(num_filter, size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
@@ -267,14 +271,14 @@ class DownSampleMod_res(Layer):
     
     def call(self, inp, training = None):
         x_1 = self.conv1(inp)
-        x = relu(self.bn1(x_1, training = training))
-        x = relu(self.bn2(self.conv2(x), training=training))
+        x = self.act(self.bn1(x_1, training = training))
+        x = self.act(self.bn2(self.conv2(x), training=training))
         out_enc = self.conv3(x)
-        x = relu(self.bn3(self.add([x_1,out_enc]), training=training))
+        x = self.act(self.bn3(self.add([x_1,out_enc]), training=training))
         if self.sample:
             x = self.d_sample(x)
             x = self.bn4(x, training=training)
-            out = relu(x)
+            out = self.act(x)
         else:
             out = x        
         return self.dOut(out, training=training), self.dOut(out_enc, training=training)
@@ -284,10 +288,10 @@ class DownSampleMod_ins(Layer):
                  pool_size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, sample=True):
         super(DownSampleMod_ins, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
@@ -296,6 +300,9 @@ class DownSampleMod_ins(Layer):
         
         self.concat = Concatenate(axis=2)
         self.add = Add()
+        
+        self.act = LeakyReLU()
+        
         self.conv1 = Conv1D(int(num_filter//1.5), size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
         self.conv2 = Conv1D(num_filter, size_filter, padding='same',
@@ -315,13 +322,13 @@ class DownSampleMod_ins(Layer):
         self.sample = sample
     
     def call(self, inp, training=None):
-        x_1 = relu(self.bn1(self.conv1(inp),training=training))
-        x_2 = relu(self.bn2(self.conv2(x_1),training=training))
-        x_3 = relu(self.bn3(self.conv3(x_2),training=training))
+        x_1 = self.act(self.bn1(self.conv1(inp),training=training))
+        x_2 = self.act(self.bn2(self.conv2(x_1),training=training))
+        x_3 = self.act(self.bn3(self.conv3(x_2),training=training))
         x_res = self.convRes(inp)
         out_enc = self.add([x_res,self.concat([x_1,x_2,x_3])])
         if self.sample:
-            out = relu(self.bn4(self.d_sample(out_enc), training=training))
+            out = self.act(self.bn4(self.d_sample(out_enc), training=training))
         else:
             out = out_enc        
         return self.dOut(out, training=training), self.dOut(out_enc,training=training)
@@ -333,15 +340,17 @@ class UpsampleMod(Layer):
                 size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, use_max_pool = False):
         super(UpsampleMod, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
         self.reg3 = L1L2(l1=l1, l2=l2)
         
         self.concat = Concatenate(axis=2)
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(num_filter, size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
@@ -357,9 +366,9 @@ class UpsampleMod(Layer):
     
     def call(self, x, enc, training = None):
         x = self.u_sample(x)
-        x = relu(self.bn1(self.concat([x, enc]), training=training))
-        x = relu(self.bn2(self.conv1(x), training=training))
-        x = relu(self.bn3(self.conv2(x), training=training))
+        x = self.act(self.bn1(self.concat([x, enc]), training=training))
+        x = self.act(self.bn2(self.conv1(x), training=training))
+        x = self.act(self.bn3(self.conv2(x), training=training))
         return self.dOut(x, training=training)
     
 class UpsampleMod_res(Layer):
@@ -367,10 +376,10 @@ class UpsampleMod_res(Layer):
                 size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, use_max_pool = False):
         super(UpsampleMod_res, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
@@ -379,6 +388,8 @@ class UpsampleMod_res(Layer):
         
         self.add = Add()
         self.concat = Concatenate(axis=2)
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(num_filter, size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
@@ -396,12 +407,12 @@ class UpsampleMod_res(Layer):
     
     def call(self, x, enc, training=None):
         x = self.u_sample(x)
-        x = relu(self.bn1(self.concat([x, enc]), training=training))
+        x = self.act(self.bn1(self.concat([x, enc]), training=training))
         x_c = self.conv1(x)
-        x = relu(self.bn2(x, training=training))
-        x = relu(self.bn3(self.conv2(x),training=training))
+        x = self.act(self.bn2(x, training=training))
+        x = self.act(self.bn3(self.conv2(x),training=training))
         x = self.conv3(x)
-        x = relu(self.bn4(self.add([x_c, x]),training=training))
+        x = self.act(self.bn4(self.add([x_c, x]),training=training))
         return self.dOut(x, training=training)
     
 class UpsampleMod_ins(Layer):
@@ -409,10 +420,10 @@ class UpsampleMod_ins(Layer):
                 size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, use_max_pool = False):
         super(UpsampleMod_ins, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
@@ -422,6 +433,8 @@ class UpsampleMod_ins(Layer):
         self.concat1 = Concatenate(axis=2)
         self.concat2 = Concatenate(axis=2)
         self.add = Add()
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(int(num_filter//1.5), size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
@@ -441,11 +454,11 @@ class UpsampleMod_ins(Layer):
         self.dOut = Dropout(rate)
     
     def call(self, x, enc, training = None):
-        x = relu(self.bn1(self.u_sample(x),training=training))
+        x = self.act(self.bn1(self.u_sample(x),training=training))
         x = self.concat1([x, enc])
-        x_1 = relu(self.bn2(self.conv1(x),   training=training))
-        x_2 = relu(self.bn3(self.conv2(x_1), training=training))
-        x_3 = relu(self.bn4(self.conv3(x_2), training=training))
+        x_1 = self.act(self.bn2(self.conv1(x),   training=training))
+        x_2 = self.act(self.bn3(self.conv2(x_1), training=training))
+        x_3 = self.act(self.bn4(self.conv3(x_2), training=training))
         x_Res = self.convRes(x)
         x = self.add([x_Res,self.concat2([x_1, x_2, x_3])])
         return self.dOut(x, training=training)
@@ -556,10 +569,10 @@ class UpsampleMod_s_res(Layer):
                 size = 2, rate = 0.1, l1 = 0.01, l2 = 0.01, use_max_pool = False):
         super(UpsampleMod_s_res, self).__init__()
         self.use_max_pool = use_max_pool
-        self.bn1   = BatchNormalization()
-        self.bn2   = BatchNormalization()
-        self.bn3   = BatchNormalization()
-        self.bn4   = BatchNormalization()
+        self.bn1   = LayerNormalization()
+        self.bn2   = LayerNormalization()
+        self.bn3   = LayerNormalization()
+        self.bn4   = LayerNormalization()
 
         self.reg1 = L1L2(l1=l1, l2=l2)
         self.reg2 = L1L2(l1=l1, l2=l2)
@@ -568,6 +581,8 @@ class UpsampleMod_s_res(Layer):
         
         self.add = Add()
         self.concat = Concatenate(axis=2)
+        
+        self.act = LeakyReLU()
 
         self.conv1 = Conv1D(num_filter, size_filter, padding='same',
                             kernel_regularizer = self.reg1, use_bias=False)
@@ -585,12 +600,12 @@ class UpsampleMod_s_res(Layer):
     
     def call(self, x, training=None):
         x = self.u_sample(x)
-        x = relu(self.bn1(x, training=training))
+        x = self.act(self.bn1(x, training=training))
         x_c = self.conv1(x)
-        x = relu(self.bn2(x, training=training))
-        x = relu(self.bn3(self.conv2(x),training=training))
+        x = self.act(self.bn2(x, training=training))
+        x = self.act(self.bn3(self.conv2(x),training=training))
         x = self.conv3(x)
-        x = relu(self.bn4(self.add([x_c, x]),training=training))
+        x = self.act(self.bn4(self.add([x_c, x]),training=training))
         return self.dOut(x, training=training)    
 
     

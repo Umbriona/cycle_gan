@@ -1,0 +1,12 @@
+#Ignore all log directories
+**/log
+
+#Ignore all data directories
+**/data
+
+# Ignore all results directories
+**/results
+
+# Ignore weights folder
+
+**/weights

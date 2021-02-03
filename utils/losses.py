@@ -1,79 +1,64 @@
 import tensorflow as tf
+from tensorflow.keras.losses import Loss, CategoricalCrossentropy, BinaryCrossentropy
+from tensorflow.keras.backend import softplus
+from tensorflow.keras import backend as K
 
-class Loss_secondary_MSE():
+class WassersteinLoss(Loss):
+    def __init__(self, ):
+        super(WassersteinLoss, self).__init__()
+        self.cross = CategoricalCrossentropy(from_logits=False, 
+                                                             label_smoothing=0.0,
+                                                             reduction = tf.keras.losses.Reduction.NONE,
+                                                             name='cat_cross')
+
+    def cycle_loss_fn(real, cycled, w):
+        return self.cross(self, real, cycled, w)
     
-    def __init__(self, sample_weight = False, name = 'loss_sec_mse'):
-        self.name = name
-        self.sample_weight = sample_weight
-        
-    def __call__(self, y, y_pred, sample_weight = None):
-        
-        if self.sample_weight:
-            assert type(sample_weight) != None, 'sample_weight needs to be supplied'
-        
-        y = tf.cast(y, dtype = tf.float32)
-        loss = tf.math.squared_difference(y, y_pred)
-        loss = tf.reduce_mean(loss, axis=-1)
-        if self.sample_weight:
-            loss = tf.math.multiply(loss,sample_weight)
-        loss = tf.reduce_mean(loss, axis=0)
+    # Define the loss function for the generators
+    def generator_loss_fn(fake):
+        return -tf.reduce_mean(fake)
+
+    # Define the loss function for the discriminators
+    def discriminator_loss_fn(real, fake):
+        real_loss = tf.reduce_mean(real)
+        fake_loss = tf.reduce_mean(fake)
+        return fake_loss - real_loss
+    
+class NonReduceingLoss(Loss):
+    def __init__(self, ):
+        super(NonReducingLoss, self).__init__()
+        self.cross = CategoricalCrossentropy(from_logits=False, 
+                                                             label_smoothing=0.0,
+                                                             reduction = tf.keras.losses.Reduction.NONE,
+                                                             name='cat_cross')
+    def cycle_loss_fn(self, real, cycled, w):
+        return self.cross(real, cycled, w)
+    
+    def generator_loss_fn(self, fake):
+        return K.mean(K.softplus(-fake))
+    
+    def discriminator_loss_fn(self, real, fake):
+        L1 = K.mean(K.softplus(-real))
+        L2 = K.mean(K.softplus(fake))
+        return L1 + L2
+    
+class HingeLoss(Loss):
+    def __init__(self ):
+        super(HingeLoss,self).__init__()
+        self.cross = CategoricalCrossentropy(from_logits=False, 
+                                                             label_smoothing=0.0,
+                                                             reduction = tf.keras.losses.Reduction.NONE,
+                                                             name='cat_cross')
+
+    def cycle_loss_fn(self, real, cycled, w):
+        return self.cross( real, cycled, w)
+    
+    # Define the loss function for the generators
+    def generator_loss_fn(self, fake):
+        return -1 * K.mean(fake)
+
+    # Define the loss function for the discriminators
+    def discriminator_loss_fn(self, real, fake):
+        loss = K.mean(K.relu(1. - real))
+        loss += K.mean(K.relu(1. + fake))
         return loss
-    
-class Loss_secondary_cross():
-    
-    def __init__(self, sample_weight = False, name = 'loss_sec_cross'):
-        self.name = name
-        self.sample_weight = sample_weight
-        
-    def __call__(self, y, y_pred, sample_weight = None):
-        
-        if self.sample_weight:
-            assert type(sample_weight) != None, 'sample_weight needs to be supplied'
-        
-        y = tf.cast(y, dtype = tf.float32)
-        loss = tf.math.multiply(y, tf.math.log(y_pred+1e-7))                         
-        loss = -tf.reduce_sum(loss, axis=-1)
-        if self.sample_weight:
-            loss = tf.math.multiply(loss,sample_weight)
-        loss = tf.reduce_sum(loss, axis=0)
-        return loss
-    
-class Loss_torsion():
-    def __init__(self, size, sample_weight = False, name = 'loss_tor'):
-        self.name = name
-        self.sample_weight = sample_weight
-        self.size = size
-        self.flatten = tf.keras.layers.Flatten()  
-    
-    def __call__(self, y_true, y_pred, sample_weight):
-        
-        if self.sample_weight:
-            assert type(sample_weight) != None, 'sample_weight needs to be supplied'
-
-        y_true = tf.transpose(y_true, perm=[0,2,1])
-        y_pred = tf.transpose(y_pred, perm=[0,2,1])
-        
-
-        y_true_csum = tf.keras.backend.cumsum(y_true, axis=-1)
-        y_pred_csum = tf.keras.backend.cumsum(y_pred, axis=-1)
-
-        
-        y_true_mat_0 = tf.keras.backend.repeat(y_true_csum[:,0,:], self.size)
-        y_true_mat_1 = tf.keras.backend.repeat(y_true_csum[:,1,:], self.size)
-        y_pred_mat_0 = tf.keras.backend.repeat(y_pred_csum[:,0,:], self.size)
-        y_pred_mat_1 = tf.keras.backend.repeat(y_pred_csum[:,1,:], self.size)
-        
-
-        y_pred_mat_0 = tf.transpose(y_pred_mat_0, perm=[0,2,1])
-        y_pred_mat_1 = tf.transpose(y_pred_mat_1, perm=[0,2,1])
-
-        vec_0 = tf.math.squared_difference(y_true_mat_0,y_pred_mat_0)
-        vec_1 = tf.math.squared_difference(y_true_mat_1,y_pred_mat_1)
-        
-        dist_mat = tf.math.sqrt(tf.math.add(vec_0, vec_1))
-        loss = tf.math.reduce_sum(tf.math.l2_normalize(dist_mat),axis=-1)
-        if self.sample_weight:
-            loss = tf.math.multiply(loss,sample_weight)
-        loss = tf.reduce_mean(loss, axis=0)
-        return loss
-
