@@ -1,5 +1,5 @@
 import tensorflow as tf
-import tensorflow_addons as tfa
+#from tensorflow_addons.layers import InstanceNormalization
 from tensorflow.keras.constraints import Constraint
 from tensorflow.keras.layers import Layer, Conv1D, LayerNormalization, Add, Concatenate, LeakyReLU, Softmax
 import tensorflow_probability as tfp
@@ -34,18 +34,14 @@ class Spectral_Norm(Constraint):
 class GumbelSoftmax(Layer):
     def __init__(self,temperature = 0.5, *args, **kwargs):
         super(GumbelSoftmax,self).__init__()
-        tfd = tfp.distributions
-
-        # Define a single scalar Gumbel distribution.
-        #self.dist = tfd.Gumbel(loc=0., scale=1.)
         
- 
         # Temperature
         self.tau = temperature
     
     def call(self, logits):
-        g = -tf.math.log(-tf.math.log(tf.random.uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.dtypes.float32)))
-        nom = tf.keras.activations.softmax(tf.math.exp((g + tf.math.log(logits))/self.tau), axis=-1)
+        U = tf.random.uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.dtypes.float32)
+        g = -tf.math.log(-tf.math.log(U+1e-20)+1e-20)
+        nom = tf.keras.activations.softmax((g + logits)/self.tau, axis=-1)
         return nom
 
 class Conv1DTranspose(Layer):
@@ -131,9 +127,9 @@ class ResMod(Layer):
         self.add = Add()
         
 
-        self.norm = tfa.layers.InstanceNormalization(
-                                   beta_initializer="random_uniform",
-                                   gamma_initializer="random_uniform")
+        #self.norm = InstanceNormalization(
+        #                           beta_initializer="random_uniform",
+        #                           gamma_initializer="random_uniform")
         self.act = LeakyReLU(0.2)
         
     def call(self, x):

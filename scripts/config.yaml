@@ -1,7 +1,10 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 1
-    lambda_id: 0.5
+    lambda_cycle: 10
+    lambda_id: 0.0
+    epochs: 50
+    batch_size: 32
+    dir: "weights/model"
     Generator:
         type: res
         layers: 6
@@ -9,8 +12,6 @@ CycleGan:
         kernels: [3, 3, 3, 3, 3, 3]
         dilations: [1, 1, 1, 1, 1, 1]
         use_attention: True
-        learning_rate: 0.00001
-        beta_1: 0.5
     Discriminator:
         layers: 6
         filters: [64, 64, 128, 128, 256, 256]
@@ -20,18 +21,35 @@ CycleGan:
         use_attention: True
         learning_rate: 0.00001
         beta_1: 0.5
-Classifyer:
+    Losses:
+        loss: Hinge
+    Optimizers:
+        optimizer_discriminator: Adam
+        learning_rate_discriminator: 0.00001
+        beta_1_discriminator: 0.5
+        optimizer_generator: Adam
+        learning_rate_generator: 0.00001
+        beta_1_generator: 0.5
+    
+          
+    Metrics:
+Classifier:
     Vocab_size: 21
-    filters:
-    kernels:
-    dilations:
-    strides:
+    filters: [64, 64, 64, 128, 128, 128, 256, 256, 256]
+    kernels: [6, 6, 6, 6, 6, 6, 4, 4, 4]
+    dilations: [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    strides: [1, 2, 2, 1, 2, 2, 1, 1, 2]
     use_attention: True
-    file: "../weights/model_ogt"
+    file: "weights/classifier/model_ogt"
 Data:
     file_thermo: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_70_81.fasta"
     file_meso: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_4_15.fasta"
-    max_samples: 10
+    max_samples: 10000
     seq_length: 512
+Log:
+    base_dir: "../log"
+    img: img 
+Results:
+    base_dir: "../results"
     
     

@@ -1,5 +1,5 @@
 import tensorflow as tf
-import tensorflow_addons as tfa
+#import tensorflow_addons as tfa
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization
 from utils.layers_new import SelfAttention, ResMod, Spectral_Norm, GumbelSoftmax 

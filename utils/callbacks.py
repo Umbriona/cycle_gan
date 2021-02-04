@@ -125,8 +125,8 @@ class PCAPlot():
     
     
     def __call__(self, gen_thermo, gen_meso, n_thermo, n_meso, step):
-        features_gen_thermo = self.calc_freq(gen_thermo, n_thermo)
-        features_gen_meso   = self.calc_freq(gen_meso, n_meso)
+        features_gen_thermo = self.calc_freq(gen_thermo, n_meso)
+        features_gen_meso   = self.calc_freq(gen_meso, n_thermo)
         
         pc_gen_thermo = self.pca.transform(features_gen_thermo)
         pc_gen_meso   = self.pca.transform(features_gen_meso)
