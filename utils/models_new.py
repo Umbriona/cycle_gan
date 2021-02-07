@@ -71,7 +71,7 @@ class Discriminator(Model):
         self.conv3 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
         self.conv4 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
         self.atte = SelfAttention(vocab)
-        self.conv = Conv1D(1, 4, strides=1, activation='linear', kernel_constraint = self.constraint, use_bias = False)
+        self.conv = Conv1D(1, 4, strides=1, activation='sigmoid', kernel_constraint = self.constraint, use_bias = False)
         
     def call(self, x):
         x, a_w = self.atte(x)

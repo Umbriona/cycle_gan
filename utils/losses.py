@@ -26,7 +26,7 @@ class WassersteinLoss(Loss):
     
 class NonReduceingLoss(Loss):
     def __init__(self, ):
-        super(NonReducingLoss, self).__init__()
+        super(NonReduceingLoss, self).__init__()
         self.cross = CategoricalCrossentropy(from_logits=False, 
                                                              label_smoothing=0.0,
                                                              reduction = tf.keras.losses.Reduction.NONE,

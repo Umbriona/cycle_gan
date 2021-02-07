@@ -28,6 +28,7 @@ parser.add_argument('-c', '--config', type=str, default = 'config.yaml',
 
 parser.add_argument('-v', '--verbose', action="store_true",
                    help = "Verbosity")
+parser.add_argument('-g', '--gpu', type=str, choices=['0', '1','0,1'], default='0,1')
 
 args = parser.parse_args()
 
@@ -65,6 +66,8 @@ def load_models(config):
     G_filters = config["Generator"]["filters"]
     G_sizes   = config["Generator"]["kernels"]
     G_dilation= config["Generator"]["dilations"]
+    G_gumbel = config["Generator"]["use_gumbel"]
+    G_temperature = config["Generator"]["temperature"]
 
 
     D_filters = config["Discriminator"]["filters"]
@@ -72,12 +75,17 @@ def load_models(config):
     D_dilation= config["Discriminator"]["dilations"]
     D_strides = config["Discriminator"]["strides"]
     
+    if config["Losses"]["loss"] = 'Non-Reducing':
+        D_activation = 'sigmoid'
+    else:
+        D_activation = 'linear'
+    
     vocab = config["Vocab_size"] 
 
-    G    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab)
-    F    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab)
-    D_x  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab)
-    D_y  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab)
+    G    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature)
+    F    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature) 
+    D_x  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab, activation = D_activation)
+    D_y  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab, activation = D_activation)
     
     return G, F, D_x, D_y
 
@@ -435,12 +443,17 @@ def train(config, model, data, time):
 
 def main():
     
+    # GPU setting
+
+    os.environ["CUDA_VISIBLE_DEVICES"]= args.gpu
+    
     # Get time
     time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     # Load configuration file
     with open(args.config, 'r') as file_descriptor:
         config = yaml.load(file_descriptor, Loader=yaml.FullLoader)
-   
+        config_str = file_descriptor.read()
+        
     # Load training data
     data = load_data(config['Data'])
     
@@ -458,14 +471,17 @@ def main():
 
     history = train(config, model, data, time)
     
-    os.mkdir(os.path.join(config['CycleGan']['dir'],time))
-    model.save_weights(os.path.join(config["CycleGan"]['dir'],time,'cycle_gan_model'))
+    #writing results
     
-    os.mkdir(os.path.join(config['Results']['base_dir'],time))
+    result_dir = os.path.join(config['Results']['base_dir'],time)
+    os.mkdir(os.path.join(result_dir))
+    os.mkdir(os.path.join(result_dir,'weights'))
+    model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model'))
     df = pd.DataFrame(history)
-    df.to_csv(os.path.join(config['Results']['base_dir'],time,'history.csv'))
-    
-    
+    df.to_csv(os.path.join(result_dir,'history.csv'))
+    with open(os.path.join(result_dir, 'config.yaml'), 'w') as file_descriptor:
+        file_descriptor.write(config_str)
+        
     return 0
 
 
