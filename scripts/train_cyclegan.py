@@ -75,15 +75,15 @@ def load_models(config):
     D_dilation= config["Discriminator"]["dilations"]
     D_strides = config["Discriminator"]["strides"]
     
-    if config["Losses"]["loss"] = 'Non-Reducing':
+    if config["Losses"]["loss"] == 'Non-Reducing':
         D_activation = 'sigmoid'
     else:
         D_activation = 'linear'
     
     vocab = config["Vocab_size"] 
 
-    G    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature)
-    F    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature) 
+    G    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature = G_temperature)
+    F    = models_new.Generator_res(G_filters, G_sizes, G_dilation, vocab, use_gumbel = G_gumbel, temperature = G_temperature) 
     D_x  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab, activation = D_activation)
     D_y  = models_new.Discriminator(D_filters, D_sizes, D_strides, D_dilation, vocab, activation = D_activation)
     
@@ -190,6 +190,7 @@ class CycleGan(tf.keras.Model):
             _, Y_bin, W_y= batch_data[1]
 
             fake_y, _ = self.G(X_bin, training=True)
+            #print(fake_y.numpy()[0,:20,:])
             fake_x, _ = self.F(Y_bin, training=True)
             #print('fake_y', fake_y.numpy()[0,:20,:])
             # Identity mapping
@@ -223,12 +224,12 @@ class CycleGan(tf.keras.Model):
             # Discriminator loss
             tot_loss_G = gen_G_loss + gen_cycle_x_loss * self.lambda_cycle + id_G_loss * self.lambda_cycle * self.lambda_id
             tot_loss_F = gen_F_loss + gen_cycle_y_loss * self.lambda_cycle + id_F_loss * self.lambda_cycle * self.lambda_id
-
+            #print('total loss G', tot_loss_G)
             loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y)
             loss_D_x = self.discriminator_loss_fn(disc_real_x, disc_fake_x)
-
+        
         grads_G = tape.gradient(tot_loss_G, self.G.trainable_variables)
-
+        
         grads_F = tape.gradient(tot_loss_F, self.F.trainable_variables)
 
         # Get the gradients for the discriminators
@@ -347,7 +348,16 @@ def train(config, model, data, time):
     for epoch in range(config['CycleGan']['epochs']):
         batches_x = data['meso_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True) 
         batches_y = data['thermo_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True)
+        
+        #Anneal schedule for gumbel
+        if config['CycleGan']['Generator']['use_gumbel']:
+                model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
+                model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
+                
         for step, x in enumerate(zip(batches_x,batches_y)):
+            
+            
+            
 
             losses_, logits = model.train_step( batch_data = x)
 
@@ -362,7 +372,8 @@ def train(config, model, data, time):
             metrics['acc_y'](x[1][1], logits[0][1], x[1][2])
             metrics['cycled_acc_x'](x[0][1], logits[1][0], x[0][2])
             metrics['cycled_acc_y'](x[1][1], logits[1][1], x[1][2])
-
+        
+        
         diff_x=0
         diff_y=0
         if epoch % 10 == 0:
@@ -413,18 +424,18 @@ def train(config, model, data, time):
             tf.summary.scalar('acc', metrics['cycled_acc_y'].result(), step = epoch, description = 'Y cycle' )
 
         # Save history object
-        history["Gen_G_loss"].append(metrics['loss_G'].result())
-        history["Cycle_X_loss"].append(metrics['loss_cycle_x'].result())
-        history["Disc_X_loss"].append(metrics['loss_disc_x'].result())
-        history["Gen_F_loss"].append(metrics['loss_F'].result())
-        history["Cycle_Y_loss"].append(metrics['loss_cycle_y'].result())
-        history["Disc_Y_loss"].append(metrics['loss_disc_y'].result())
-        history["x_acc"].append(metrics['acc_x'].result())
-        history["x_c_acc"].append(metrics['cycled_acc_x'].result())
-        history["y_acc"].append(metrics['acc_y'].result())
-        history["y_c_acc"].append(metrics['cycled_acc_y'].result())
-        history["temp_diff_x"].append(diff_x)
-        history["temp_diff_y"].append(diff_y)
+        history["Gen_G_loss"].append(metrics['loss_G'].result().numpy())
+        history["Cycle_X_loss"].append(metrics['loss_cycle_x'].result().numpy())
+        history["Disc_X_loss"].append(metrics['loss_disc_x'].result().numpy())
+        history["Gen_F_loss"].append(metrics['loss_F'].result().numpy())
+        history["Cycle_Y_loss"].append(metrics['loss_cycle_y'].result().numpy())
+        history["Disc_Y_loss"].append(metrics['loss_disc_y'].result().numpy())
+        history["x_acc"].append(metrics['acc_x'].result().numpy())
+        history["x_c_acc"].append(metrics['cycled_acc_x'].result().numpy())
+        history["y_acc"].append(metrics['acc_y'].result().numpy())
+        history["y_c_acc"].append(metrics['cycled_acc_y'].result().numpy())
+        history["temp_diff_x"].append(diff_x.numpy())
+        history["temp_diff_y"].append(diff_y.numpy())
         # Reset states
         metrics['loss_G'].reset_states()
         metrics['loss_cycle_x'].reset_states()
@@ -452,8 +463,10 @@ def main():
     # Load configuration file
     with open(args.config, 'r') as file_descriptor:
         config = yaml.load(file_descriptor, Loader=yaml.FullLoader)
-        config_str = file_descriptor.read()
         
+    with open(args.config, 'r') as file_descriptor:
+        config_str = file_descriptor.read()
+
     # Load training data
     data = load_data(config['Data'])
     
@@ -476,9 +489,12 @@ def main():
     result_dir = os.path.join(config['Results']['base_dir'],time)
     os.mkdir(os.path.join(result_dir))
     os.mkdir(os.path.join(result_dir,'weights'))
+    # Save model
     model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model'))
+    # Write history obj
     df = pd.DataFrame(history)
     df.to_csv(os.path.join(result_dir,'history.csv'))
+    # Save config_file
     with open(os.path.join(result_dir, 'config.yaml'), 'w') as file_descriptor:
         file_descriptor.write(config_str)
         
