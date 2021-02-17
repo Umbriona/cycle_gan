@@ -1,13 +1,13 @@
 import tensorflow as tf
 #import tensorflow_addons as tfa
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization
+from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization, Softmax
 from utils.layers_new import SelfAttention, ResMod, Spectral_Norm, GumbelSoftmax 
 
 
 
 class Generator_res(Model):
-    def __init__(self, filters, size, dilation, vocab):
+    def __init__(self, filters, size, dilation, vocab, use_gumbel, temperature = 0.5):
         super(Generator_res, self).__init__()
         self.res1 = ResMod(filters[0], size[0], dilation = dilation[0])
         self.res2 = ResMod(filters[1], size[1], dilation = dilation[1])
@@ -17,7 +17,10 @@ class Generator_res(Model):
         self.res6 = ResMod(filters[5], size[5], dilation = dilation[5])
         
         self.atte = SelfAttention(256)
-        self.gms = GumbelSoftmax(temperature = 0.5)
+        if use_gumbel:
+            self.gms = GumbelSoftmax(temperature = 0.5)
+        else:
+            self.gms = Softmax()
         self.out = Conv1D(vocab, 3, padding = 'same', activation = self.gms)
     def call(self, x):
         
@@ -32,7 +35,7 @@ class Generator_res(Model):
         return x, a_w
     
 class Discriminator_res(Model):
-    def __init__(self, filters, size, strides, dilation, vocab):
+    def __init__(self, filters, size, strides, dilation, vocab, activation = 'linear'):
         super(Discriminator_res, self).__init__()
         self.constraint = Spectral_Norm()
         self.res1 = ResMod(filters[0], size[0], strides=strides[0], dilation = dilation[0], constrains=self.constraint)
@@ -47,7 +50,7 @@ class Discriminator_res(Model):
         self.atte = SelfAttention(vocab)
         self.flatten = Flatten()
         
-        self.out = Dense(1, activation = 'linear', kernel_constraint=self.constraint)
+        self.out = Dense(1, activation = activation, kernel_constraint=self.constraint)
         
     def call(self, x):
         x, a_w = self.atte(x)
@@ -62,16 +65,16 @@ class Discriminator_res(Model):
         return x, a_w
     
 class Discriminator(Model):
-    def __init__(self, filters, size, strides, dilation, vocab ):
+    def __init__(self, filters, size, strides, dilation, vocab, activation = 'sigmoid' ):
         super(Discriminator, self).__init__()
         self.constraint = Spectral_Norm()
         self.act = LeakyReLU(0.2)
-        self.conv1 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
-        self.conv2 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
-        self.conv3 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
-        self.conv4 = Conv1D(filters[0], size[0], strides=strides[0], kernel_constraint = self.constraint, use_bias = False)
+        self.conv1 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv2 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv3 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv4 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
         self.atte = SelfAttention(vocab)
-        self.conv = Conv1D(1, 4, strides=1, activation='sigmoid', kernel_constraint = self.constraint, use_bias = False)
+        self.conv = Conv1D(1, 4, strides=1, activation= activation, padding='same', kernel_constraint = self.constraint, use_bias = False)
         
     def call(self, x):
         x, a_w = self.atte(x)
