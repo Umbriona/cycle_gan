@@ -110,8 +110,8 @@ def prepare_dataset(file_name, file_format = 'fasta', seq_length = 1024, t_v_spl
                                                     test_size=t_v_split, random_state=42)
     n_train = int_train.shape[0]
     n_test  = int_test.shape[0]
-    dataset_train = tf.data.Dataset.from_tensor_slices((int_train,bin_train,W_train))
-    dataset_validate = tf.data.Dataset.from_tensor_slices((int_test,bin_test,W_test))
+    dataset_train = tf.data.Dataset.from_tensor_slices((id_train,bin_train,W_train))
+    dataset_validate = tf.data.Dataset.from_tensor_slices((id_test,bin_test,W_test))
     return dataset_train, dataset_validate, n_train, n_test
     
 def prepare_dataset_U_N(file_path, file_name, file_format = 'fasta', seq_length = 1024, t_v_split = 0.1):
