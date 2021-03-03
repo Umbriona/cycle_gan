@@ -70,9 +70,9 @@ class Discriminator(Model):
         self.constraint = Spectral_Norm()
         self.act = LeakyReLU(0.2)
         self.conv1 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
-        self.conv2 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
-        self.conv3 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
-        self.conv4 = Conv1D(filters[0], size[0], strides=strides[0], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv2 = Conv1D(filters[1], size[1], strides=strides[1], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv3 = Conv1D(filters[2], size[2], strides=strides[2], padding='same', kernel_constraint = self.constraint, use_bias = False)
+        self.conv4 = Conv1D(filters[3], size[3], strides=strides[3], padding='same', kernel_constraint = self.constraint, use_bias = False)
         self.atte = SelfAttention(vocab)
         self.conv = Conv1D(1, 4, strides=1, activation= activation, padding='same', kernel_constraint = self.constraint, use_bias = False)
         
