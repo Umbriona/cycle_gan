@@ -73,9 +73,10 @@ class PCAPlot():
         for i, item in enumerate(data):
             seq_len = int(np.sum(item[2]))
             for x in range(seq_len):
-                if item[0][x] >= 20:
+                seq = np.argmax(item[1], axis=-1)
+                if seq[x] >= 20:
                     continue
-                tmp[i, int(item[0][x])] += 1
+                tmp[i, int(seq[x])] += 1
             tmp[i, :] /= seq_len
         return tmp
     
