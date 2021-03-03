@@ -278,8 +278,8 @@ class CycleGan(tf.keras.Model):
             W_y[k,:] = w_y.numpy()
 
 
-        df_gen_y = zip(list(gen_y), list(W_x), list(W_x))
-        df_gen_x = zip(list(gen_x), list(W_y), list(W_y)) 
+        df_gen_y = zip(list(gen_y), logits.numpy(), list(W_x))
+        df_gen_x = zip(list(gen_x), logits.numpy(), list(W_y)) 
 
         self.pcaobj(df_gen_y, df_gen_x, data['n_thermo_val'], data['n_meso_val'], step=step)
 
@@ -307,7 +307,7 @@ class CycleGan(tf.keras.Model):
             diff += tf.math.reduce_mean(tf.math.subtract(logits_trans,logits_real))
             diff_y = diff/k
 
-        return diff_x, diff_y
+        return diff_x.numpy(), diff_y.numpy()
 
 def train(config, model, data, time):
     
@@ -344,7 +344,8 @@ def train(config, model, data, time):
         "temp_diff_y":[]
         
     }
-
+    diff_x=0
+    diff_y=0
     for epoch in range(config['CycleGan']['epochs']):
         batches_x = data['meso_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True) 
         batches_y = data['thermo_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True)
@@ -374,9 +375,8 @@ def train(config, model, data, time):
             metrics['cycled_acc_y'](x[1][1], logits[1][1], x[1][2])
         
         
-        diff_x=0
-        diff_y=0
-        if epoch % 10 == 0:
+
+        if epoch % 10 == 0 or epoch == config['CycleGan']['epochs']-1:
             val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
             val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
             
@@ -434,8 +434,8 @@ def train(config, model, data, time):
         history["x_c_acc"].append(metrics['cycled_acc_x'].result().numpy())
         history["y_acc"].append(metrics['acc_y'].result().numpy())
         history["y_c_acc"].append(metrics['cycled_acc_y'].result().numpy())
-        history["temp_diff_x"].append(diff_x.numpy())
-        history["temp_diff_y"].append(diff_y.numpy())
+        history["temp_diff_x"].append(diff_x)
+        history["temp_diff_y"].append(diff_y)
         # Reset states
         metrics['loss_G'].reset_states()
         metrics['loss_cycle_x'].reset_states()
