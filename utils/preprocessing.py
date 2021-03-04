@@ -4,6 +4,12 @@ import os
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
+def convert_table(seq, w):    
+    aas = 'ACDEFGHIKLMNPQRSTVWYX'
+    dict_ = {i:aa for i, aa in enumerate(aas)}
+    seq_str = "".join([dict_[res] for res in seq[w==1]])
+    return seq_str 
+
 def synt2binary(seq):
     bin_seq = np.zeros((100,5), dtype=np.float32)
 
