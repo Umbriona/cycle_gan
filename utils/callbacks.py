@@ -66,16 +66,16 @@ class PCAPlot():
         
         
              
-    def calc_freq(self, data, n_items): 
+    def calc_freq(self, data, n_items, init=False): 
         
 
         tmp = np.zeros((n_items,20), dtype = np.float32)
         for i, item in enumerate(data):
             seq_len = int(np.sum(item[2]))
             for x in range(seq_len):
-                if item[0][x] >= 20:
+                if np.argmax(item[1][x,:]) >= 20:
                     continue
-                tmp[i, int(item[0][x])] += 1
+                tmp[i, int(np.argmax(item[1][x,:]))] += 1
             tmp[i, :] /= seq_len
         return tmp
     
@@ -125,8 +125,8 @@ class PCAPlot():
     
     
     def __call__(self, gen_thermo, gen_meso, n_thermo, n_meso, step):
-        features_gen_thermo = self.calc_freq(gen_thermo, n_meso)
-        features_gen_meso   = self.calc_freq(gen_meso, n_thermo)
+        features_gen_thermo = self.calc_freq(gen_thermo, n_meso, init = True)
+        features_gen_meso   = self.calc_freq(gen_meso, n_thermo, init = True)
         
         pc_gen_thermo = self.pca.transform(features_gen_thermo)
         pc_gen_meso   = self.pca.transform(features_gen_meso)

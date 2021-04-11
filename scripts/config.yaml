@@ -1,8 +1,8 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 0.1
-    lambda_id: 0.5
-    epochs: 5
+    lambda_cycle: 0.05
+    lambda_id: 0.01
+    epochs: 200
     batch_size: 32
     dir: "weights/model"
     Generator:
@@ -24,10 +24,10 @@ CycleGan:
         loss: Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
-        learning_rate_discriminator: 0.0002
+        learning_rate_discriminator: 0.00002
         beta_1_discriminator: 0.5
         optimizer_generator: Adam
-        learning_rate_generator: 0.0001
+        learning_rate_generator: 0.00001
         beta_1_generator: 0.5
     
           

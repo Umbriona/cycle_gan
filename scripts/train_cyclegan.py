@@ -258,28 +258,28 @@ class CycleGan(tf.keras.Model):
         # PCA clustering to measure diversity
         W_x = np.zeros((data['n_meso_val'],512)) #TODO
         W_y = np.zeros((data['n_thermo_val'],512)) #TODO
-        gen_x = np.zeros((data['n_thermo_val'],512))
-        gen_y = np.zeros((data['n_meso_val'],512))
+        gen_x = np.zeros((data['n_thermo_val'],512,21))
+        gen_y = np.zeros((data['n_meso_val'],512,21))
 
         
         for k, item in enumerate(val_x):
             _, X_bin, w_x = item    
             logits, _ = self.G(X_bin)
-            tmp = tf.math.argmax(logits, axis = -1).numpy()
-            gen_y[k,:] = tmp    
+            #tmp = tf.math.argmax(logits, axis = -1).numpy()
+            gen_y[k,:, :] = logits #tmp    
             W_x[k,:] = w_x.numpy()
 
         #print(data['n_meso_val'])
         for k, item in enumerate(val_y):
             _, Y_bin, w_y = item    
             logits, _ = self.F(Y_bin)
-            tmp = tf.math.argmax(logits, axis = -1).numpy()
-            gen_x[k,:] = tmp
+            #tmp = tf.math.argmax(logits, axis = -1).numpy()
+            gen_x[k,:, :] = logits #tmp
             W_y[k,:] = w_y.numpy()
 
 
-        df_gen_y = zip(list(gen_y), list(W_x), list(W_x))
-        df_gen_x = zip(list(gen_x), list(W_y), list(W_y)) 
+        df_gen_y = zip(list(gen_y), list(gen_y), list(W_x))
+        df_gen_x = zip(list(gen_x), list(gen_x), list(W_y)) 
 
         self.pcaobj(df_gen_y, df_gen_x, data['n_thermo_val'], data['n_meso_val'], step=step)
 
@@ -344,7 +344,8 @@ def train(config, model, data, time):
         "temp_diff_y":[]
         
     }
-
+    diff_x = 0
+    diff_y = 0
     for epoch in range(config['CycleGan']['epochs']):
         batches_x = data['meso_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True) 
         batches_y = data['thermo_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True)
@@ -374,8 +375,6 @@ def train(config, model, data, time):
             metrics['cycled_acc_y'](x[1][1], logits[1][1], x[1][2])
         
         
-        diff_x=0
-        diff_y=0
         if epoch % 10 == 0:
             val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
             val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
