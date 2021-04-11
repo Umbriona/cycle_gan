@@ -1,0 +1,19 @@
+import os
+
+rule all:
+    input:
+        expand("../weights/classifier{nr}.h5", nr = [1,2,3])
+
+rule train:
+    input:
+        "../config/Classifier/config_classifier{nr}.yaml"
+    output:
+        "../weights/classifier{nr}.h5"
+    conda:
+        "../env/classifier1.yaml"
+    resources:
+        nvidia_gpu=1
+    threads: 16
+    shell:
+        "python train_classifier.py -c {input} -o {output} --gpu 0"
+        

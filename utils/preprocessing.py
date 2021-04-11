@@ -237,10 +237,15 @@ def prepare_dataset_reg(file_path, file_names,
             dict_['seq_bin'].append(to_binary(str(rec.seq), max_length=seq_length))
         print(name, count)
    # Splitting data to training and validation sets
-    bin_train, bin_test, ogt_train, ogt_test = train_test_split(np.array(dict_['seq_bin'], dtype = np.float32),
-                                                                 np.array(dict_['ogt'], dtype = np.float32),
-                                                                 test_size=t_v_split, random_state=42)
+    if t_v_split > 0:
+        bin_train, bin_test, ogt_train, ogt_test = train_test_split(np.array(dict_['seq_bin'], dtype = np.float32),
+                                                                     np.array(dict_['ogt'], dtype = np.float32),
+                                                                     test_size=t_v_split, random_state=42)
 
-    dataset_train = tf.data.Dataset.from_tensor_slices((bin_train, ogt_train))
-    dataset_validate = tf.data.Dataset.from_tensor_slices((bin_test,ogt_test))
-    return dataset_train, dataset_validate
+        dataset_train = tf.data.Dataset.from_tensor_slices((bin_train, ogt_train))
+        dataset_validate = tf.data.Dataset.from_tensor_slices((bin_test,ogt_test))
+        return dataset_train, dataset_validate
+    else:
+        dataset_validate = tf.data.Dataset.from_tensor_slices((np.array(dict_['seq_bin'], dtype = np.float32),
+                                                               np.array(dict_['ogt'], dtype = np.float32)))
+        return  dataset_validate

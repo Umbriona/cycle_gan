@@ -35,7 +35,8 @@ class NonReduceingLoss(Loss):
         return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
     
     def generator_loss_fn(self, fake):
-        return K.mean(K.softplus(-fake), axis=0)
+        loss = K.mean(K.softplus(-fake), axis=0)
+        return loss
     
     def discriminator_loss_fn(self, real, fake):
         L1 = K.mean(K.softplus(-real), axis=0)

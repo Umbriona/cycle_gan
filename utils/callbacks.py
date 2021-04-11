@@ -1,10 +1,18 @@
 import os
 import io
 import tensorflow as tf
+from tensorflow.keras import backend as K
 from collections import Counter
 import numpy as np
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+
+def coef_det_k(y_true, y_pred):
+    """Computer coefficient of determination R^2
+    """
+    SS_res = K.sum(K.square(y_true - y_pred))
+    SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
+    return 1 - SS_res / (SS_tot + K.epsilon())
 
 class KLMonitor():
     """Callback that calculates residue frequency from transformed sequences and computes the KL-divergence with the true residue frequences"""
@@ -63,17 +71,17 @@ class PCAPlot():
         
         self.pc_thermo = self.pca.transform(self.features_thermo)
         self.pc_meso   = self.pca.transform(self.features_meso)
-        
+        self.plot_pca(self.pc_thermo, self.pc_meso)
         
              
     def calc_freq(self, data, n_items): 
         
-
+        
         tmp = np.zeros((n_items,20), dtype = np.float32)
         for i, item in enumerate(data):
             seq_len = int(np.sum(item[2]))
-            for x in range(seq_len):
-                seq = np.argmax(item[1], axis=-1)
+            seq = np.argmax(item[1], axis=-1)
+            for x in range(seq_len):         
                 if seq[x] >= 20:
                     continue
                 tmp[i, int(seq[x])] += 1
@@ -119,7 +127,7 @@ class PCAPlot():
         legend2 = plt.legend(handles, ['Thermophiles', 'Mesophiles', 'Gen Thermophiles', 'Gen Mesophiles'], loc="upper right", title="Distributions")
         plt.xlabel('PC 1')
         plt.ylabel('PC 2')
-        
+        #plt.show()
         img = self.plot2img(fig)
         return img
 

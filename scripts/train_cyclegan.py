@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import os, sys
 currentdir = os.path.dirname(os.getcwd())
 sys.path.append(currentdir)
@@ -36,7 +37,8 @@ args = parser.parse_args()
 def train(config, model, data, time):
     
     #file writers
-
+    result_dir = os.path.join(config['Results']['base_dir'],time)
+    
     base_dir = os.path.join(config['Log']['base_dir'],time)
     G_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'G'))
     F_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'F'))
@@ -70,13 +72,14 @@ def train(config, model, data, time):
     diff_x=0
     diff_y=0
     for epoch in range(config['CycleGan']['epochs']):
+
         batches_x = data['meso_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True) 
         batches_y = data['thermo_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True)
         
         #Anneal schedule for gumbel
         if config['CycleGan']['Generator']['use_gumbel']:
-                model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
-                model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
+                model.G.gms.tau = max(0.5, np.exp(-0.001*epoch))
+                model.F.gms.tau = max(0.5, np.exp(-0.001*epoch))
                 
         for step, x in enumerate(zip(batches_x,batches_y)):
             
@@ -95,7 +98,10 @@ def train(config, model, data, time):
             metrics['cycled_acc_y'](x[1][1], logits[1][1], x[1][2])
         
         
-
+        if epoch % 20 == 0 and epoch > 0:
+            # Save model
+            model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
+            
         if epoch % 10 == 0 or epoch == config['CycleGan']['epochs']-1:
             val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
             val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
@@ -107,21 +113,29 @@ def train(config, model, data, time):
             with temp_diff_summary_y.as_default():
                 tf.summary.scalar('temp_diff', diff_y, step=epoch, description = 'temp_diff_y')
 
-
+        print("tau", model.G.gms.tau)
         if args.verbose:    
-            print("Epoch: %d Loss_G: %2.4f Loss_F: %2.4f Loss_cycle_X: %2.4f Loss_cycle_Y: %2.4f Loss_D_Y: %2.4f Loss_D_X %2.4f" % 
+            print("Epoch: %d Loss_G: %2.4f Loss_F: %2.4f Loss_cycle_X: %2.4f Loss_cycle_Y: %2.4f Loss_D_Y: %2.4f Loss_D_X %2.4f tau %1.4f" % 
               (epoch, float(metrics['loss_G'].result()),
                float(metrics['loss_F'].result()),
                float(metrics['loss_cycle_x'].result()),
                float(metrics['loss_cycle_y'].result()),
                float(metrics['loss_disc_y'].result()),
-               float(metrics['loss_disc_x'].result())))
+               float(metrics['loss_disc_x'].result()),
+               model.G.gms.tau))               
             print("Epoch: %d acc trans x: %2.4f acc trans y: %2.4f acc cycled x : %2.4f acc cycled y: %2.4f" % 
               (epoch, metrics['acc_x'].result(),
                metrics['acc_y'].result(),
                metrics['cycled_acc_x'].result(),
                metrics['cycled_acc_y'].result()))
-
+        
+        # set Id
+        if float(metrics['acc_x'].result()) > 0.8:
+            model.lambda_id = 0.00
+            print('lambda Id', model.lambda_id)
+        elif float(metrics['acc_x'].result()) < 0.7:
+            model.lambda_id = config['CycleGan']['lambda_id']
+            print('lambda Id', model.lambda_id)
         # Write log file
         with G_summary_writer.as_default():
                 tf.summary.scalar('loss', metrics['loss_G'].result(), step = epoch, description = 'X transform')
@@ -186,7 +200,11 @@ def main():
         
     with open(args.config, 'r') as file_descriptor:
         config_str = file_descriptor.read()
-
+    
+    result_dir = os.path.join(config['Results']['base_dir'],time)
+    os.mkdir(os.path.join(result_dir))
+    os.mkdir(os.path.join(result_dir,'weights'))
+    
     # Load training data
     data = load_data(config['Data'])
     
@@ -195,7 +213,7 @@ def main():
     
     # Initiate model
     model = models_new.CycleGan(config, callbacks = cb)
-    
+    print("tau", model.G.gms.tau)
     loss_obj  = load_losses(config['CycleGan']['Losses'])
     optimizers = load_optimizers(config['CycleGan']['Optimizers'])
     model.compile(loss_obj, optimizers)
@@ -206,9 +224,7 @@ def main():
     
     #writing results
     
-    result_dir = os.path.join(config['Results']['base_dir'],time)
-    os.mkdir(os.path.join(result_dir))
-    os.mkdir(os.path.join(result_dir,'weights'))
+    
     # Save model
     model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model'))
     # Write history obj

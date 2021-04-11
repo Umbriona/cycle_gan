@@ -1,0 +1,74 @@
+CycleGan:
+    Vocab_size: 21
+    lambda_cycle: 0.05
+    lambda_id: 0.1
+    epochs: 200
+    batch_size: 50
+    dir: "weights/model"
+    Generator:
+        type: res
+        n_layers: 6
+        filters: [64, 64, 128, 128, 256, 256]
+        kernels: [6, 6, 6, 4, 4, 4]
+        dilations: [1, 1, 1, 1, 1, 1]
+        strides: [1, 1, 1, 1, 1, 1]
+        use_attention: True
+        attention_loc: 5
+        use_gumbel: True
+        temperature: 0.5
+        l1: 0.0
+        l2: 0.0
+        rate: 0.2
+    Discriminator:
+        n_layers: 6
+        filters: [64, 64, 128, 128, 256, 256]
+        kernels: [6, 6, 6, 4, 4, 4]
+        dilations: [1, 1, 1, 1, 1, 1]
+        strides: [1, 1, 2, 2, 2, 2]
+        use_attention: True
+        attention_loc: 5
+        l1: 0.0
+        l2: 0.0
+        rate: 0.2
+    Losses:
+        loss: Non-Reducing #Hinge #Non-Reducing
+    Optimizers:
+        optimizer_discriminator: Adam
+        learning_rate_discriminator: 0.00001
+        beta_1_discriminator: 0.5
+        optimizer_generator: Adam
+        learning_rate_generator: 0.00002
+        beta_1_generator: 0.5
+    
+          
+    Metrics:
+Classifier:
+    vocab_size: 21
+    n_layers: 6
+    max_length: 512
+    filters: [64, 64, 64, 128, 128, 128, 256, 256, 256]
+    kernels: [6, 6, 6, 4, 4, 4, 4, 4, 4]
+    dilations: [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    strides: [1, 2, 2, 1, 2, 2, 1, 1, 2]
+    l1: 0.0
+    l2: 0.0
+    rate: 0.2
+    use_attention: True
+    attention_loc: 5
+    use_global_pos: False
+    temporal_encode: 21
+    learning_rate: 0.0001
+    batch_size: 20
+    dir: "../weights"
+Data:
+    file_thermo: "../data/OGT_Classes/ogt_class_4"
+    file_meso: "../data/OGT_Classes/ogt_class_0"
+    max_samples: 10000
+    seq_length: 512
+Log:
+    base_dir: "../log"
+    img: img 
+Results:
+    base_dir: "../results"
+    
+    

@@ -10,3 +10,16 @@
 # Ignore weights folder
 
 **/weights
+
+# snakemake log files
+
+**/.snakemake
+**/scripts/.snakemake
+**/scripts/Analysis/.scripts
+
+# ignore __pycach__
+
+**/utils/__pycache__
+
+# ignore iputhon checkpoint 
+**/utils/.ipynb_checkpoints
