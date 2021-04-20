@@ -32,7 +32,7 @@ class NonReduceingLoss(Loss):
                                                              reduction = tf.keras.losses.Reduction.NONE,
                                                              name='cat_cross')
     def cycle_loss_fn(self, real, cycled, w):
-        return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
+        return tf.reduce_mean(self.cross( real, cycled, w))
     
     def generator_loss_fn(self, fake):
         loss = K.mean(K.softplus(-fake), axis=0)
