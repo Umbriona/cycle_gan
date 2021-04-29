@@ -28,12 +28,12 @@ class NonReduceingLoss(Loss):
     def __init__(self, ):
         super(NonReduceingLoss, self).__init__()
         self.cross = CategoricalCrossentropy(from_logits=False, 
-                                                             label_smoothing=0.0,
-                                                             reduction = tf.keras.losses.Reduction.NONE,
-                                                             name='cat_cross')
+                                                             label_smoothing=0.0) #,
+                                                             #reduction = tf.keras.losses.Reduction.NONE,
+                                                             #name='cat_cross')
     def cycle_loss_fn(self, real, cycled, w):
-        return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
-        #return self.cross( real, cycled, w)
+        #return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
+        return self.cross( real, cycled, w)
     
     def generator_loss_fn(self, fake):
         return K.mean(K.softplus(-fake), axis=0)
