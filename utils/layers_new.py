@@ -7,7 +7,7 @@ import tensorflow_probability as tfp
 
 POWER_ITERATIONS = 5
 
-class Spectral_Norm(Constraint):
+class Spectral_Norm_old(Constraint):
     '''
     Uses power iteration method to calculate a fast approximation 
     of the spectral norm (Golub & Van der Vorst)
@@ -31,6 +31,39 @@ class Spectral_Norm(Constraint):
     def get_config(self):
         return {'n_iters': self.n_iters}
     
+class Spectral_Norm(Constraint):
+    '''
+    Uses power iteration method to calculate a fast approximation 
+    of the spectral norm (Golub & Van der Vorst)
+    The weights are then scaled by the inverse of the spectral norm
+    '''
+    def __init__(self, power_iters=POWER_ITERATIONS):
+        self.n_iters = power_iters
+    
+    def l2normalize(self, v, eps=1e-12):
+        """l2 normalize the input vector.
+        Args:
+          v: tensor to be normalized
+          eps:  epsilon (Default value = 1e-12)
+        Returns:
+          A normalized tensor
+        """
+        return v / (tf.reduce_sum(v ** 2) ** 0.5 + eps)
+
+    def __call__(self, w):
+        w_mat = tf.reshape(w, [w.shape[0], -1])
+        u = tf.random.normal([flattened_w.shape[0]])
+
+        for i in range(self.n_iters):
+            v = self.l2normalize(tf.matmul(w_mat, u, transpose_a=True))
+            u = self.l2normalize(tf.matmul(w_mat, v))
+
+        sigma = tf.squeeze(tf.matmul(u, tf.matmul(w_mat, v), transpose_a=True))
+        return w / sigma
+
+    def get_config(self):
+        return {'n_iters': self.n_iters}
+    
 class GumbelSoftmax(Layer):
     def __init__(self,temperature = 0.5, *args, **kwargs):
         super(GumbelSoftmax,self).__init__()
@@ -41,6 +74,7 @@ class GumbelSoftmax(Layer):
     def call(self, logits):
         U = tf.random.uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.dtypes.float32)
         g = -tf.math.log(-tf.math.log(U+1e-20)+1e-20)
+        #logits = tf.math.log(tf.keras.activations.softmax(logits))
         nom = tf.keras.activations.softmax((g + logits)/self.tau, axis=-1)
         return nom
 
@@ -141,5 +175,100 @@ class ResMod(Layer):
         if self.strides:
             x = self.act(self.conv4(x)) 
         x = self.act(x)
+        return x
+    
+class ResMod_PreAct(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None):
+        super(ResMod, self).__init__()
+        
+        self.conv1 = Conv1D(filters, size,
+                            dilation_rate = dilation,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )
+        self.conv2 = Conv1D(filters, size,
+                            dilation_rate = dilation,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )
+
+        self.strides = False
+        
+        if strides > 1:
+            self.strides = True
+            self.conv3 = Conv1D(filters, size,
+                                dilation_rate = 1,
+                                strides = strides,
+                                padding = 'same',
+                                use_bias = False,
+                                kernel_constraint = constrains )
+            
+            
+        self.conv  = Conv1D(filters, 1,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )   
+        
+        self.add = Add()
+        self.norm1 = LayerNormalizations(axis=-1)
+        self.norm2 = LayerNormalizations(axis=-1)
+                                  
+        self.act = LeakyReLU(0.2)
+        
+    def call(self, x):
+        x_in = self.conv(x)
+        x = self.conv1(self.act(x))
+        x = self.conv2(self.act(self.norm1(x))
+        x = self.norm2(x)
+        x = self.add([x, x_in])
+        if self.strides:
+            x = self.act(self.conv3(x)) 
+        return x
+                       
+class ResMod_FullPreAct(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None):
+        super(ResMod, self).__init__()
+        
+        self.conv1 = Conv1D(filters, size,
+                            dilation_rate = dilation,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )
+        self.conv2 = Conv1D(filters, size,
+                            dilation_rate = dilation,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )
+
+        self.strides = False
+        
+        if strides > 1:
+            self.strides = True
+            self.conv3 = Conv1D(filters, size,
+                                dilation_rate = 1,
+                                strides = strides,
+                                padding = 'same',
+                                use_bias = False,
+                                kernel_constraint = constrains )
+            
+            
+        self.conv  = Conv1D(filters, 1,
+                            padding = 'same',
+                            use_bias = False,
+                            kernel_constraint = constrains )   
+        
+        self.add = Add()
+        self.norm1 = LayerNormalizations(axis=-1)
+        self.norm2 = LayerNormalizations(axis=-1)
+                                  
+        self.act = LeakyReLU(0.2)
+        
+    def call(self, x):
+        x_in = self.conv(x)
+        x = self.conv1(self.act(self.norm1(x)))
+        x = self.conv2(self.act(self.norm2(x)))
+        x = self.add([x, x_in])
+        if self.strides:
+            x = self.act(self.conv3(x)) 
         return x
         

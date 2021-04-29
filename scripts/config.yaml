@@ -1,7 +1,7 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 0.05
-    lambda_id: 0.01
+    lambda_cycle: 0.1
+    lambda_id: 0.05
     epochs: 200
     batch_size: 32
     dir: "weights/model"
@@ -41,8 +41,8 @@ Classifier:
     use_attention: True
     file: "weights/classifier/model_ogt"
 Data:
-    file_thermo: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_70_81.fasta"
-    file_meso: "/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_4_15.fasta"
+    file_thermo: ../data/OGT_Classes/ogt_class_0 #"/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_70_81.fasta"
+    file_meso: ../data/OGT_Classes/ogt_class_4 #"/mnt/Archive/Data_Sets/OGT/ogt_classes/ogt_4_15.fasta"
     max_samples: 10000
     seq_length: 512
 Log:

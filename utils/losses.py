@@ -33,6 +33,7 @@ class NonReduceingLoss(Loss):
                                                              name='cat_cross')
     def cycle_loss_fn(self, real, cycled, w):
         return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
+        #return self.cross( real, cycled, w)
     
     def generator_loss_fn(self, fake):
         return K.mean(K.softplus(-fake), axis=0)

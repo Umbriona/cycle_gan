@@ -10,3 +10,11 @@
 # Ignore weights folder
 
 **/weights
+
+# snakemake files
+
+*.snakemake
+
+# notebook checkpoints
+
+*.ipynb_checkpoints

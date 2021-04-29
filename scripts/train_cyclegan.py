@@ -288,6 +288,8 @@ class CycleGan(tf.keras.Model):
         for k, item in enumerate(val_x):
             _, X_bin, W_x = item 
             logit, _ = self.G(X_bin)
+            logit = tf.math.argmax(logits, axis=-1, output_type=tf.dtypes.int64)
+            logit = tf.one_hot(logit, 21, dtype=tf.float32)
             W_x = tf.reshape(W_x, shape=(1,512,1))
             W_x = tf.repeat(W_x, repeats=21, axis=2)
             trans_x = tf.math.multiply(W_x, logit)
@@ -299,6 +301,8 @@ class CycleGan(tf.keras.Model):
         for k, item in enumerate(val_y):
             _, Y_bin, W_y = item 
             logit, _ = self.F(Y_bin)
+            logit = tf.math.argmax(logits, axis=-1, output_type=tf.dtypes.int64)
+            logit = tf.one_hot(logit, 21, dtype=tf.float32)
             W_y = tf.reshape(W_y, shape=(1,512,1))
             W_y = tf.repeat(W_y, repeats=21, axis=2)
             trans_y = tf.math.multiply(W_y, logit)
@@ -353,7 +357,7 @@ def train(config, model, data, time):
         #Anneal schedule for gumbel
         if config['CycleGan']['Generator']['use_gumbel']:
                 model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
-                model.G.gms.tau = max(0.1, np.exp(-0.01*epoch))
+                model.F.gms.tau = max(0.1, np.exp(-0.01*epoch))
                 
         for step, x in enumerate(zip(batches_x,batches_y)):
             
