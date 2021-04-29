@@ -13,7 +13,7 @@
 
 # snakemake log files
 
-**/.snakemake
+*.snakemake
 **/scripts/.snakemake
 **/scripts/Analysis/.scripts
 
@@ -22,4 +22,7 @@
 **/utils/__pycache__
 
 # ignore iputhon checkpoint 
-**/utils/.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# pycache
+*.pyc

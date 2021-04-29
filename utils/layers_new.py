@@ -16,17 +16,28 @@ class Spectral_Norm(Constraint):
     '''
     def __init__(self, power_iters=POWER_ITERATIONS):
         self.n_iters = power_iters
+    
+    def l2normalize(self, v, eps=1e-12):
+        """l2 normalize the input vector.
+        Args:
+          v: tensor to be normalized
+          eps:  epsilon (Default value = 1e-12)
+        Returns:
+          A normalized tensor
+        """
+        return v / (tf.reduce_sum(v ** 2) ** 0.5 + eps)
 
     def __call__(self, w):
-        flattened_w = tf.reshape(w, [w.shape[0], -1])
-        u = tf.random.normal([flattened_w.shape[0]])
-        v = tf.random.normal([flattened_w.shape[1]])
+        w_shape = w.shape.as_list()
+        w_mat = tf.reshape(w, [-1, w_shape[-1]]) 
+
+        u = tf.random.normal([1, w_shape[-1]])
+
         for i in range(self.n_iters):
-            v = tf.linalg.matvec(tf.transpose(flattened_w), u)
-            v = tf.keras.backend.l2_normalize(v)
-            u = tf.linalg.matvec(flattened_w, v)
-            u = tf.keras.backend.l2_normalize(u)
-            sigma = tf.tensordot(u, tf.linalg.matvec(flattened_w, v), axes=1)
+            v = self.l2normalize(tf.matmul(u, w_mat, transpose_b=True))
+            u = self.l2normalize(tf.matmul(v, w_mat))
+
+        sigma = tf.squeeze(tf.matmul(tf.matmul(v, w_mat), u, transpose_b=True))
         return w / sigma
 
     def get_config(self):

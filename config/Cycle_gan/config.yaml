@@ -63,7 +63,7 @@ Classifier:
 Data:
     file_thermo: "../data/OGT_Classes/ogt_class_4"
     file_meso: "../data/OGT_Classes/ogt_class_0"
-    max_samples: 10000
+    max_samples: 100
     seq_length: 512
 Log:
     base_dir: "../log"
