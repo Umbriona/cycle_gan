@@ -31,7 +31,7 @@ CycleGan:
         l2: 0.0
         rate: 0.2
     Losses:
-        loss: Non-Reducing #Hinge #Non-Reducing
+        loss: Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
         learning_rate_discriminator: 0.00002
@@ -59,6 +59,7 @@ Classifier:
     temporal_encode: 21
     learning_rate: 0.0001
     batch_size: 20
+    model_type: "Res"
     dir: "../weights"
 Data:
     file_thermo: "../data/OGT_Classes/ogt_class_4"

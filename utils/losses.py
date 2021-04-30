@@ -6,13 +6,9 @@ from tensorflow.keras import backend as K
 class WassersteinLoss(Loss):
     def __init__(self, ):
         super(WassersteinLoss, self).__init__()
-        self.cross = CategoricalCrossentropy(from_logits=False, 
-                                                             label_smoothing=0.0,
-                                                             reduction = tf.keras.losses.Reduction.NONE,
-                                                             name='cat_cross')
-
+        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
     def cycle_loss_fn(self, real, cycled, w):
-        return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
+        return self.cross( real, cycled, w)
     
     # Define the loss function for the generators
     def generator_loss_fn(self, fake):
@@ -27,12 +23,9 @@ class WassersteinLoss(Loss):
 class NonReduceingLoss(Loss):
     def __init__(self, ):
         super(NonReduceingLoss, self).__init__()
-        self.cross = CategoricalCrossentropy(from_logits=False, 
-                                                             label_smoothing=0.0,
-                                                             reduction = tf.keras.losses.Reduction.NONE,
-                                                             name='cat_cross')
+        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
     def cycle_loss_fn(self, real, cycled, w):
-        return tf.reduce_mean(self.cross( real, cycled, w))
+        return self.cross( real, cycled, w)
     
     def generator_loss_fn(self, fake):
         loss = K.mean(K.softplus(-fake), axis=0)
@@ -46,13 +39,10 @@ class NonReduceingLoss(Loss):
 class HingeLoss(Loss):
     def __init__(self ):
         super(HingeLoss,self).__init__()
-        self.cross = CategoricalCrossentropy(from_logits=False, 
-                                                             label_smoothing=0.0,
-                                                             reduction = tf.keras.losses.Reduction.NONE,
-                                                             name='cat_cross')
+        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
 
     def cycle_loss_fn(self, real, cycled, w):
-        return tf.reduce_mean(self.cross( real, cycled, w), axis = 0)
+        return self.cross( real, cycled, w)
     
     # Define the loss function for the generators
     def generator_loss_fn(self, fake):
@@ -63,3 +53,25 @@ class HingeLoss(Loss):
         loss = K.mean(K.relu(1. - real),axis=0)
         loss += K.mean(K.relu(1. + fake),axis=0)
         return loss
+    
+class MSE(Loss):
+    def __init__(self ):
+        super(MSE, self).__init__()
+        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
+        self.mse   = tf.keras.losses.MeanSquaredError()
+        
+    def cycle_loss_fn(self, real, cycled, w):
+        return self.cross( real, cycled, w)
+    
+    # Define the loss function for the generators
+    def generator_loss_fn(self, fake):
+        fake_loss = self.mse(tf.ones_like(fake), fake)
+        return fake_loss
+
+    # Define the loss function for the discriminators
+    def discriminator_loss_fn(self, real, fake):
+        real_loss = self.mse(tf.ones_like(real), real)
+        fake_loss = self.mse(tf.zeros_like(fake), fake)
+        return (real_loss + fake_loss) * 0.5
+
+

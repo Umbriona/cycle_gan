@@ -141,7 +141,7 @@ class Classifier(Model):
             
         self.inp = Input((config['max_length'], config['vocab_size']), batch_size=self.batch_size)
         self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
-        self.conv2 = Conv1D(config['filters'][config['n_layers']], 3, padding= 'same', activation = 'relu')
+        self.conv2 = Conv1D(config['filters'][config['n_layers']], 6, padding= 'same', activation = 'relu')
         
         if self.model_type == "Res":
             self.res = [ResMod(config['filters'][i],

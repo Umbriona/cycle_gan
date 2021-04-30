@@ -40,8 +40,11 @@ def load_losses(config):
         loss_obj = losses.WassersteinLoss()
     elif config['loss'] == 'Hinge':
         loss_obj = losses.HingeLoss()
+    elif config['loss'] == "Mse":
+        loss_obj = losses.MSE()
     else:
-        loss_obj = losses.NonReduceingLoss()
+        raise NotImplementedError
+        
     return loss_obj
 
 def load_optimizers(config):
