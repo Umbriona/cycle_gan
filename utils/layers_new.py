@@ -49,10 +49,13 @@ class GumbelSoftmax(Layer):
         
         # Temperature
         self.tau = temperature
+        self.smx = Softmax()
     
     def call(self, logits):
         U = tf.random.uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.dtypes.float32)
         g = -tf.math.log(-tf.math.log(U+1e-20)+1e-20)
+        prob = self.smx(logits)
+        log_prob = tf.math.log(prob)
         nom = tf.keras.activations.softmax((g + logits)/self.tau, axis=-1)
         return nom
 
