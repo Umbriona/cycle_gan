@@ -4,7 +4,7 @@ import tensorflow as tf
 #import tensorflow_addons as tfa
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization, Softmax
-from utils.layers_new import SelfAttention, ResMod,ResMod_old, Spectral_Norm, GumbelSoftmax 
+from utils.layers_new import SelfAttention, ResMod,ResMod_old, ResModPreAct, Spectral_Norm, GumbelSoftmax 
 
 ATTENTION_FEATURES = 512
 
@@ -131,15 +131,29 @@ class Classifier(Model):
         self.atte_loc = config['attention_loc']
         self.batch_size = config['batch_size']
         self.max_length = config['max_length']
+        self.model_type = config['model_type']
+        
+        assert self.model_type in ['ResPreAct', "Res"], "model type {} not implemented needs to be [ResPreAct, Res]".format(self.model_type)  
+        
         if self.use_temporal_enc:
             self.get_time()
             self.emb  = Embedding(config['max_length'], config['temporal_encode'])
             
         self.inp = Input((config['max_length'], config['vocab_size']), batch_size=self.batch_size)
         self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
-        self.conv2 = Conv1D(config['filters'][config['n_layers']], 6, padding= 'same', activation = 'relu')
-
-        self.res = [ResMod(config['filters'][i],
+        self.conv2 = Conv1D(config['filters'][config['n_layers']], 3, padding= 'same', activation = 'relu')
+        
+        if self.model_type == "Res":
+            self.res = [ResMod(config['filters'][i],
+                           config['kernels'][i],
+                           strides=config['strides'][i],
+                           dilation = config['dilations'][i],
+                           constrains=None,
+                           l1=config['l1'],
+                           l2=config['l2'],
+                           rate = config['rate']) for i in range(self.n_layers)]
+        elif self.model_type == "ResPreAct":
+            self.res = [ResMod(config['filters'][i],
                            config['kernels'][i],
                            strides=config['strides'][i],
                            dilation = config['dilations'][i],
