@@ -35,7 +35,7 @@ args = parser.parse_args()
 
 
 def train(config, model, data, time):
-    
+    print(model.lambda_cycle)
     #file writers
     result_dir = os.path.join(config['Results']['base_dir'],time)
     
@@ -73,13 +73,13 @@ def train(config, model, data, time):
     diff_y=0
     for epoch in range(config['CycleGan']['epochs']):
 
-        batches_x = data['meso_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True) 
-        batches_y = data['thermo_train'].shuffle(buffer_size = 40000).batch(config['CycleGan']['batch_size'], drop_remainder=True)
+        batches_x = data['meso_train'].batch(config['CycleGan']['batch_size'], drop_remainder=True) 
+        batches_y = data['thermo_train'].batch(config['CycleGan']['batch_size'], drop_remainder=True)
         
         #Anneal schedule for gumbel
         if config['CycleGan']['Generator']['use_gumbel']:
-                model.G.gms.tau = max(0.5, np.exp(-0.001*epoch))
-                model.F.gms.tau = max(0.5, np.exp(-0.001*epoch))
+            tf.keras.backend.set_value(model.G.gms.tau,    max(0.3, np.exp(-0.01*epoch)))
+            tf.keras.backend.set_value(model.F.gms.tau,    max(0.3, np.exp(-0.01*epoch)))
                 
         for step, x in enumerate(zip(batches_x,batches_y)):
             
@@ -102,16 +102,27 @@ def train(config, model, data, time):
             # Save model
             model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
             
-        if epoch % 10 == 0 or epoch == config['CycleGan']['epochs']-1:
-            val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
-            val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(1, drop_remainder=False)
+        if epoch % 1 == 0 or epoch == config['CycleGan']['epochs']-1:
+            val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
+            val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
             
-            diff_x, diff_y = model.validate_step( val_x, val_y,data, epoch)
+            for i, x in enumerate(zip(val_x, val_y)):
+                diff_x, diff_y = model.validate_step(x)
 
-            with temp_diff_summary_x.as_default():
-                tf.summary.scalar('temp_diff', diff_x, step=epoch, description = 'temp_diff_x')
-            with temp_diff_summary_y.as_default():
-                tf.summary.scalar('temp_diff', diff_y, step=epoch, description = 'temp_diff_y')
+                with temp_diff_summary_x.as_default():
+                    tf.summary.scalar('temp_diff', diff_x, step=epoch, description = 'temp_diff_x')
+                with temp_diff_summary_y.as_default():
+                    tf.summary.scalar('temp_diff', diff_y, step=epoch, description = 'temp_diff_y')
+                
+        if epoch % 10 == 0:
+            val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
+            val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
+            for batch in zip(val_x, val_y):
+                fake_y = model.generate_step(batch)
+                break
+            for seq in fake_y:
+                print(seq[:100])
+            pass
 
         print("tau", model.G.gms.tau)
         if args.verbose:    
@@ -131,11 +142,18 @@ def train(config, model, data, time):
         
         # set Id
         if float(metrics['acc_x'].result()) > 0.8:
-            model.lambda_id = 0.00
-            print('lambda Id', model.lambda_id)
+            lambda_cycle = tf.keras.backend.get_value(model.lambda_cycle)
+            lambda_id = tf.keras.backend.get_value(model.lambda_id)
+            tf.keras.backend.set_value(model.lambda_id,  lambda_id * 0.0)
+            print(lambda_id)
+            tf.keras.backend.set_value(model.lambda_cycle, lambda_cycle *0.7)
+
+                    
         elif float(metrics['acc_x'].result()) < 0.7:
-            model.lambda_id = config['CycleGan']['lambda_id']
-            print('lambda Id', model.lambda_id)
+            
+            tf.keras.backend.set_value(model.lambda_id,  config['CycleGan']['lambda_id'])
+            tf.keras.backend.set_value(model.lambda_cycle, config['CycleGan']['lambda_cycle'])
+            
         # Write log file
         with G_summary_writer.as_default():
                 tf.summary.scalar('loss', metrics['loss_G'].result(), step = epoch, description = 'X transform')
@@ -213,7 +231,6 @@ def main():
     
     # Initiate model
     model = models_new.CycleGan(config, callbacks = cb)
-    print("tau", model.G.gms.tau)
     loss_obj  = load_losses(config['CycleGan']['Losses'])
     optimizers = load_optimizers(config['CycleGan']['Optimizers'])
     model.compile(loss_obj, optimizers)
