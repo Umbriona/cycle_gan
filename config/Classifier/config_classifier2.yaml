@@ -1,5 +1,6 @@
 Classifier:
     vocab_size: 21
+    model_type: "ResPreAct"
     n_layers: 6
     max_length: 512
     filters: [64, 64, 64, 128, 128, 128, 256, 256, 256]
@@ -16,7 +17,7 @@ Classifier:
     learning_rate: 0.0001
     batch_size: 32
     epochs: 300
-    file: "../weights/classifier2"
+    file: "../weights/classifier9"
 Data:
     max_length: 512
     max_samples: 400000

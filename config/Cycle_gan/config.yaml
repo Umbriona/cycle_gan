@@ -1,53 +1,56 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 0.1
-    lambda_id: 0.03
-    epochs: 200
+    lambda_cycle: 1.00
+    lambda_id: 0.5
+    epochs: 500
     batch_size: 32
     dir: "weights/model"
     Generator:
         type: res
         n_layers: 6
+        max_length: 512
+        vocab_size: 21
         filters: [64, 64, 128, 128, 256, 256]
-        kernels: [6, 6, 6, 4, 4, 4]
+        kernels: [3, 3, 3, 3, 3, 3]
         dilations: [1, 1, 1, 1, 1, 1]
         strides: [1, 1, 1, 1, 1, 1]
         use_attention: True
-        attention_loc: 3
+        attention_loc: 4
         use_gumbel: True
         temperature: 0.5
-        l1: 0.0
-        l2: 0.0
+        l1: 0.01
+        l2: 0.01
         rate: 0.2
     Discriminator:
-        n_layers: 6
+        n_layers: 4
+        max_length: 512
+        vocab_size: 21
         filters: [64, 64, 128, 128, 256, 256]
-        kernels: [6, 6, 6, 4, 4, 4]
+        kernels: [3, 3, 3, 3, 3, 3]
         dilations: [1, 1, 1, 1, 1, 1]
-        strides: [1, 1, 2, 2, 2, 2]
+        strides: [2, 2, 2, 2, 2, 2]
         use_attention: True
-        attention_loc: 5
-        l1: 0.0
-        l2: 0.0
+        attention_loc: 3
+        l1: 0.01
+        l2: 0.01
         rate: 0.2
     Losses:
-        loss: Mse #Hinge #Non-Reducing
+        loss: Non-Reducing # Wasserstein #Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
-        learning_rate_discriminator: 0.00002
+        learning_rate_discriminator: 0.0002
         beta_1_discriminator: 0.5
         optimizer_generator: Adam
-        learning_rate_generator: 0.00001
-        beta_1_generator: 0.5
-    
-          
+        learning_rate_generator: 0.0001
+        beta_1_generator: 0.5         
     Metrics:
 Classifier:
     vocab_size: 21
-    n_layers: 6
+    model_type: "ResPreAct"
+    n_layers: 9
     max_length: 512
     filters: [64, 64, 64, 128, 128, 128, 256, 256, 256]
-    kernels: [6, 6, 6, 4, 4, 4, 4, 4, 4]
+    kernels: [3, 3, 3, 3, 3, 3, 3, 3, 3]
     dilations: [1, 1, 1, 1, 1, 1, 1, 1, 1]
     strides: [1, 2, 2, 1, 2, 2, 1, 1, 2]
     l1: 0.0
@@ -58,13 +61,13 @@ Classifier:
     use_global_pos: False
     temporal_encode: 21
     learning_rate: 0.0001
-    batch_size: 20
-    model_type: "Res"
+    batch_size: 64
     dir: "../weights"
+
 Data:
     file_thermo: "../data/OGT_Classes/ogt_class_4"
     file_meso: "../data/OGT_Classes/ogt_class_0"
-    max_samples: 100
+    max_samples: 10000
     seq_length: 512
 Log:
     base_dir: "../log"

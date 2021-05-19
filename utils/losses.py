@@ -23,18 +23,20 @@ class WassersteinLoss(Loss):
 class NonReduceingLoss(Loss):
     def __init__(self, ):
         super(NonReduceingLoss, self).__init__()
-        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
+        self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0, reduction=tf.keras.losses.Reduction.NONE)
     def cycle_loss_fn(self, real, cycled, w):
-        return self.cross( real, cycled, w)
+        return tf.reduce_mean(self.cross( real, cycled, w), axis=0)
     
     def generator_loss_fn(self, fake):
-        loss = K.mean(K.softplus(-fake), axis=0)
-        return loss
+        return -tf.math.reduce_mean(tf.math.log(fake), axis=None)
+        #return K.mean(K.softplus(-fake), axis=0)
     
     def discriminator_loss_fn(self, real, fake):
-        L1 = K.mean(K.softplus(-real), axis=0)
-        L2 = K.mean(K.softplus(fake), axis=0)
-        return L1 + L2
+        L1 = tf.reduce_mean(tf.math.log(real), axis=None)
+        L2 = tf.reduce_mean(tf.math.log(tf.ones_like(fake)-fake), axis=None)
+        #L1 = K.mean(K.softplus(-real), axis=0)
+        #L2 = K.mean(K.softplus(fake), axis=0)
+        return -1*(L1 + L2) #* (-1)
     
 class HingeLoss(Loss):
     def __init__(self ):

@@ -34,7 +34,7 @@ def load_data(config):
 
 
 def load_losses(config):
-    if config['loss'] == 'Non-Reduceing':
+    if config['loss'] == 'Non-Reducing':
         loss_obj = losses.NonReduceingLoss()
     elif config['loss'] == 'Wasserstein':
         loss_obj = losses.WassersteinLoss()

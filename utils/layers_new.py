@@ -1,5 +1,5 @@
 import tensorflow as tf
-#from tensorflow_addons.layers import InstanceNormalization
+import tensorflow_addons as tfa
 from tensorflow.keras.constraints import Constraint
 from tensorflow.keras.layers import Layer, Conv1D, BatchNormalization, LayerNormalization, Add, Concatenate, LeakyReLU, Softmax, Dropout
 from tensorflow.keras.regularizers import L1L2
@@ -8,47 +8,14 @@ from tensorflow.keras.regularizers import L1L2
 
 POWER_ITERATIONS = 5
 
-class Spectral_Norm(Constraint):
-    '''
-    Uses power iteration method to calculate a fast approximation 
-    of the spectral norm (Golub & Van der Vorst)
-    The weights are then scaled by the inverse of the spectral norm
-    '''
-    def __init__(self, power_iters=POWER_ITERATIONS):
-        self.n_iters = power_iters
-    
-    def l2normalize(self, v, eps=1e-12):
-        """l2 normalize the input vector.
-        Args:
-          v: tensor to be normalized
-          eps:  epsilon (Default value = 1e-12)
-        Returns:
-          A normalized tensor
-        """
-        return v / (tf.reduce_sum(v ** 2) ** 0.5 + eps)
 
-    def __call__(self, w):
-        w_shape = w.shape.as_list()
-        w_mat = tf.reshape(w, [-1, w_shape[-1]]) 
-
-        u = tf.random.normal([1, w_shape[-1]])
-
-        for i in range(self.n_iters):
-            v = self.l2normalize(tf.matmul(u, w_mat, transpose_b=True))
-            u = self.l2normalize(tf.matmul(v, w_mat))
-
-        sigma = tf.squeeze(tf.matmul(tf.matmul(v, w_mat), u, transpose_b=True))
-        return w / sigma
-
-    def get_config(self):
-        return {'n_iters': self.n_iters}
     
 class GumbelSoftmax(Layer):
     def __init__(self,temperature = 0.5, *args, **kwargs):
         super(GumbelSoftmax,self).__init__()
         
         # Temperature
-        self.tau = temperature
+        self.tau = tf.Variable(temperature, dtype=tf.float32, trainable=False)
         self.smx = Softmax()
     
     def call(self, logits):
@@ -109,6 +76,62 @@ class Conv1DTranspose(Layer):
         })
         return config
 
+class SelfAttentionSN(Layer):
+    def __init__(self,  filters ):
+        super(SelfAttentionSN, self).__init__()
+        
+        self.kernel_querry = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.kernel_key    = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.kernel_value  = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.out           = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.num_heads = 8
+        self.filters = filters
+        self.depth = filters // self.num_heads
+        self.gamma = self.add_weight(name='gamma', initializer=tf.keras.initializers.Constant(value=1), trainable=True)
+        self.dout = Dropout(0.3)
+        self.norm = LayerNormalization(axis = -1, epsilon = 1e-6)
+        
+    def split_heads(self, x, batch_size):
+        """Split the last dimension into (num_heads, depth).
+        Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
+        """
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])        
+    
+    def call(self, x, mask=None, training = True):
+        batch_size = tf.shape(x)[0]
+        
+        querry = self.kernel_querry(x)
+        key    = self.kernel_key(x)
+        value  = self.kernel_value(x)
+        
+        querry = self.split_heads( querry, batch_size)
+        key    = self.split_heads( key, batch_size)
+        value  = self.split_heads( value, batch_size)
+         
+        
+        attention_logits  = tf.matmul(querry, key, transpose_b = True)
+        attention_weights = tf.math.softmax(attention_logits, axis=-1)
+        
+        attention_feature_map = tf.matmul(attention_weights, value)
+        if mask is not None:
+            attention_feature_map = tf.math.multiply(attention_feature_map, mask)
+            
+        attention_feature_map = tf.transpose(attention_feature_map, perm=[0, 2, 1, 3])
+
+        concat_attention = tf.reshape(attention_feature_map, (batch_size, -1, self.filters))
+        concat_attention = self.dout(concat_attention, training = training)
+        out = x + self.out(concat_attention)*self.gamma
+        out = self.norm(out)
+        return out, attention_weights
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'filters': self.filters     
+        })
+        return config
+    
 class SelfAttention(Layer):
     def __init__(self,  filters ):
         super(SelfAttention, self).__init__()
@@ -169,35 +192,39 @@ class ResMod_old(Layer):
     def __init__(self, filters, size, strides=1, dilation=1, constrains = None):
         super(ResMod_old, self).__init__()
         
-        self.conv1 = Conv1D(filters, size,
-                            dilation_rate = dilation,
-                            padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = constrains )
-        self.conv2 = Conv1D(filters, size, dilation_rate = dilation, padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = constrains )
-        self.conv3 = Conv1D(filters, size, dilation_rate = dilation, padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = constrains )
+        self.conv1 = tfa.layers.SpectralNormalization(Conv1D(filters,
+                                                             size,
+                                                             dilation_rate = dilation,
+                                                             padding = 'same',
+                                                             use_bias = False))
+        
+        self.conv2 = tfa.layers.SpectralNormalization(Conv1D(filters,
+                                                             size,
+                                                             dilation_rate = dilation,
+                                                             padding = 'same',
+                                                             use_bias = False))
+        
+        self.conv3 = tfa.layers.SpectralNormalization(Conv1D(filters,
+                                                             size,
+                                                             dilation_rate = dilation,
+                                                             padding = 'same',
+                                                             use_bias = False))
         self.strides = False
         
         if strides > 1:
             self.strides = True
-            self.conv4 = Conv1D(filters, size, dilation_rate = 1, strides = strides, padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = constrains )
+            self.conv4 = tfa.layers.SpectralNormalization(Conv1D(filters,
+                                                                 size,
+                                                                 dilation_rate = 1,
+                                                                 strides = strides,
+                                                                 padding ='same',
+                                                                 use_bias = True))
             
             
-        self.conv  = Conv1D(filters, 1, padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = constrains )   
+        self.conv  = tfa.layers.SpectralNormalization(Conv1D(filters, 1,
+                                                             padding = 'same',
+                                                             use_bias = False))   
         self.add = Add()
-        
-
-        #self.norm = InstanceNormalization(
-        #                           beta_initializer="random_uniform",
-        #                           gamma_initializer="random_uniform")
         self.act = LeakyReLU(0.2)
         
     def call(self, x):
@@ -211,9 +238,9 @@ class ResMod_old(Layer):
         x = self.act(x)
         return x
 
-class ResMod(Layer):
-    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.01, l2=0.01, rate = 0.2):
-        super(ResMod, self).__init__()
+class ResModSN(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.0, l2=0.0, rate = 0.2):
+        super(ResModSN, self).__init__()
         self.filters = filters
         self.kernel  = size
         self.strides = strides
@@ -222,51 +249,48 @@ class ResMod(Layer):
         self.l1 = l1
         self.l2 = l2
         self.rate = rate
-        self.conv1 = Conv1D(self.filters, 
-                            self.kernel,
-                            dilation_rate = self.dilation,
-                            padding = 'same',
-                            use_bias = True,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
-        self.conv2 = Conv1D(self.filters,
-                            self.kernel,
-                            dilation_rate = self.dilation,
-                            padding = 'same',
-                            use_bias = True,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
-        self.conv3 = Conv1D(self.filters,
-                            self.kernel,
-                            dilation_rate = self.dilation,
-                            padding = 'same',
-                            use_bias = True,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+        self.conv1 = tfa.layers.SpectralNormalization(Conv1D(self.filters, 
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        
+        self.conv2 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        
+        self.conv3 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
 
         
         if self.strides > 1:
-            self.conv4 = Conv1D(self.filters,
-                                self.kernel,
-                                dilation_rate = 1,
-                                strides = self.strides,
-                                padding = 'same',
-                                use_bias = True,
-                                kernel_constraint = self.constrains,
-                                kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+            self.conv4 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+                                                                 self.kernel,
+                                                                 dilation_rate = 1,
+                                                                 strides = self.strides,
+                                                                 padding = 'same',
+                                                                 use_bias = True,
+                                                                 kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
             
             
-        self.conv  = Conv1D(self.filters, 1,
-                            padding = 'same',
-                            use_bias = False,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))   
+        self.conv  = tfa.layers.SpectralNormalization(Conv1D(self.filters, 1,
+                                                             padding = 'same',
+                                                             use_bias = False,
+                                                             kernel_constraint = self.constrains,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))   
         self.add  = Add()
         self.dout = Dropout(self.rate)
         self.act  = LeakyReLU(0.1)
         self.norm1 = LayerNormalization(axis = -1)
-#        self.norm2 = BatchNormalization()
-#        self.norm3 = BatchNormalization()
+
 
         
     def call(self, x, training=True):
@@ -295,60 +319,56 @@ class ResMod(Layer):
         })
         return config
     
-class ResModPreAct(Layer):
-    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.01, l2=0.01, rate = 0.2):
+class ResMod(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, l1=0.01, l2=0.01, rate = 0.2):
         super(ResMod, self).__init__()
         self.filters = filters
         self.kernel  = size
         self.strides = strides
         self.dilation= dilation
-        self.constrains = constrains
         self.l1 = l1
         self.l2 = l2
         self.rate = rate
-        self.conv1 = Conv1D(self.filters, 
+        
+        self.conv1 = tfa.layers.SpectralNormalization(Conv1D(self.filters, 
                             self.kernel,
                             dilation_rate = self.dilation,
                             padding = 'same',
                             use_bias = True,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
-        self.conv2 = Conv1D(self.filters,
+                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        self.conv2 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
                             self.kernel,
                             dilation_rate = self.dilation,
                             padding = 'same',
                             use_bias = True,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
                     
             
-        self.conv  = Conv1D(self.filters, 1,
+        self.conv  = tfa.layers.SpectralNormalization(Conv1D(self.filters, 1,
                             padding = 'same',
                             use_bias = False,
-                            kernel_constraint = self.constrains,
-                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+                            kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
         if self.strides > 1:
-            self.conv3 = Conv1D(self.filters,
+            self.conv3 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
                                 self.kernel,
                                 dilation_rate = 1,
                                 strides = self.strides,
                                 padding = 'same',
                                 use_bias = True,
-                                kernel_constraint = self.constrains,
-                                kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+                                kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
         self.add  = Add()
         self.dout = Dropout(self.rate)
         self.act  = LeakyReLU(0.2)
-        self.norm1 = LayerNormalization(axis = -1)
-        self.norm2 = LayerNormalization(axis = -1)
+        self.norm1 = BatchNormalization()
+        self.norm2 = BatchNormalization()
 
 
         
     def call(self, x, training=True):
         x_in = self.conv(x)
 
-        x = self.conv1(self.act(self.norm1(x)))
-        x = self.conv2(self.act(self.norm2(x)))
+        x = self.conv1(self.act(self.norm1(x, training = training)))
+        x = self.conv2(self.act(self.norm2(x, training = training)))
         
         x = self.dout(x, training = training)
         x = self.add([x, x_in])
@@ -366,6 +386,153 @@ class ResModPreAct(Layer):
             'strides': self.strides,
             'dilation': self.dilation,
             'constrains': self.constrains,
+            'l1': self.l1,
+            'l2': self.l2,
+            'rate': self.rate
+            
+        })
+        return config
+        
+    
+class ResModPreActSN(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.0, l2=0.0, rate = 0.2):
+        super(ResModPreActSN, self).__init__()
+        self.filters = filters
+        self.kernel  = size
+        self.strides = strides
+        self.dilation= dilation
+        self.constrains = constrains
+        self.l1 = l1
+        self.l2 = l2
+        self.rate = rate
+        self.conv1 = tfa.layers.SpectralNormalization(Conv1D(self.filters, 
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        
+        self.conv2 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+                    
+            
+        self.conv  = tfa.layers.SpectralNormalization(Conv1D(self.filters, 1,
+                                                             padding = 'same',
+                                                             use_bias = False,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        if self.strides > 1:
+            self.conv3 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+                                                                 self.kernel,
+                                                                 dilation_rate = 1,
+                                                                 strides = self.strides,
+                                                                 padding = 'same',
+                                                                 use_bias = True,
+                                                                 kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+        self.add  = Add()
+        self.dout = Dropout(self.rate)
+        self.act  = LeakyReLU(0.2)
+
+
+
+        
+    def call(self, x, training=True):
+        x_in = self.conv(x)
+
+        x = self.conv1(self.act(x))
+        x = self.conv2(self.act(x))
+        
+        x = self.dout(x, training = training)
+        x = self.add([x, x_in])
+        
+        if self.strides > 1:
+            x = self.act(self.conv3(x)) 
+        
+        return x
+    
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'filters': self.filters,
+            'kernel': self.kernel,
+            'strides': self.strides,
+            'dilation': self.dilation,
+            'l1': self.l1,
+            'l2': self.l2,
+            'rate': self.rate
+            
+        })
+        return config
+    
+class ResModPreAct(Layer):
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.0, l2=0.0, rate = 0.2):
+        super(ResModPreAct, self).__init__()
+        self.filters = filters
+        self.kernel  = size
+        self.strides = strides
+        self.dilation= dilation
+        self.constrains = constrains
+        self.l1 = l1
+        self.l2 = l2
+        self.rate = rate
+        self.conv1 = Conv1D(self.filters, 
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+        
+        self.conv2 = Conv1D(self.filters,
+                                                             self.kernel,
+                                                             dilation_rate = self.dilation,
+                                                             padding = 'same',
+                                                             use_bias = True,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+                    
+            
+        self.conv  = Conv1D(self.filters, 1,
+                                                             padding = 'same',
+                                                             use_bias = False,
+                                                             kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+        if self.strides > 1:
+            self.conv3 = Conv1D(self.filters,
+                                                                 self.kernel,
+                                                                 dilation_rate = 1,
+                                                                 strides = self.strides,
+                                                                 padding = 'same',
+                                                                 use_bias = True,
+                                                                 kernel_regularizer = L1L2(l1=self.l1, l2=self.l2))
+        self.add  = Add()
+        self.dout = Dropout(self.rate)
+        self.act  = LeakyReLU(0.2)
+
+
+
+        
+    def call(self, x, training=True):
+        x_in = self.conv(x)
+
+        x = self.conv1(self.act(x))
+        x = self.conv2(self.act(x))
+        
+        x = self.dout(x, training = training)
+        x = self.add([x, x_in])
+        
+        if self.strides > 1:
+            x = self.act(self.conv3(x)) 
+        
+        return x
+    
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'filters': self.filters,
+            'kernel': self.kernel,
+            'strides': self.strides,
+            'dilation': self.dilation,
             'l1': self.l1,
             'l2': self.l2,
             'rate': self.rate

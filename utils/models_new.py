@@ -1,13 +1,14 @@
 import os
 import numpy as np
 import tensorflow as tf
-#import tensorflow_addons as tfa
+import tensorflow_addons as tfa
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization, Softmax
-from utils.layers_new import SelfAttention, ResMod,ResMod_old, ResModPreAct, Spectral_Norm, GumbelSoftmax 
+from tensorflow.keras.layers import Conv1D, Dense, Flatten, LeakyReLU, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization, Softmax, Dropout, Concatenate
+from utils.layers_new import SelfAttention, SelfAttentionSN, ResMod, GumbelSoftmax, ResModPreActSN
+from utils import preprocessing as pre
 
 ATTENTION_FEATURES = 512
-
+    
 class Generator_res(Model):
     def __init__(self, config, vocab):
         super(Generator_res, self).__init__()
@@ -16,109 +17,99 @@ class Generator_res(Model):
         assert len(config['filters']) >= self.n_layers, "not enough filters specified"
         assert len(config['kernels']) >= self.n_layers, "not enough kernels specified"
         assert len(config['dilations']) >= self.n_layers, "not enough dilations specified"
-        
-        self.res = [ResMod_old(config['filters'][i],
+        self.inpt = Input((config['max_length'], config['vocab_size']))
+        self.res = [ResMod(config['filters'][i],
                            config['kernels'][i],
                            strides=config['strides'][i],
                            dilation = config['dilations'][i],
-                           constrains=None) for i in range(self.n_layers)]
-                           #l1=config['l1'],
-                           #l2=config['l2'],
-                           #rate = config['rate']) for i in range(self.n_layers)]
+                           l1=config['l1'],
+                           l2=config['l2'],
+                           rate = config['rate']) for i in range(self.n_layers)]
            
         self.atte_loc = config['attention_loc']
         self.use_atte = config['use_attention']
-        self.atte = SelfAttention(config['filters'][self.atte_loc])
+        self.atte = SelfAttentionSN(config['filters'][self.atte_loc])
         self.use_gumbel = config['use_gumbel']
         if self.use_gumbel:
             self.gms = GumbelSoftmax(temperature = 0.5)
         else:
             self.gms = Softmax()
-        self.inp = Conv1D(config['filters'][0], config['kernels'][0], padding = 'same', activation = 'relu')
-        self.out = Conv1D(vocab, 3, padding = 'same', activation = self.gms)
-    def call(self, x):
-      #  print('xin', x)
-        x = self.inp(x)
-      #  print('xinres', x)
+        self.outconv = Conv1D(vocab, 3, padding = 'same', activation = self.gms)
+        
+        self.out = self.call(self.inpt)                         
+        # Reinitial
+        super(Generator_res, self).__init__(
+        inputs=self.inpt,
+        outputs=self.out)
+        
+    def call(self, x, training = True):
         for i in range(self.n_layers):
-            x = self.res[i](x)
-      #      print('x{}'.format(i), x)
+            x = self.res[i](x, training = training)
             if self.atte_loc == i and self.use_atte:
                 x, a_w = self.atte(x)
-                #print('xa', x)
-        x = self.out(x)
-       # print('x4', x)
+        x = self.outconv(x)
         return x, a_w
     
-class Discriminator_res(Model):
-    def __init__(self, config, vocab):
-        super(Discriminator_res, self).__init__()
+    def build(self):
+        # Initialize the graph
+        self._is_graph_network = True
+        self._init_graph_network(
+            inputs=self.inp,
+            outputs=self.out)
+    
 
-        self.constraint = Spectral_Norm()
-        self.n_layers = config['layers']
-        assert len(config['filters']) >= self.n_layers, "not enough filters specified"
-        assert len(config['kernels']) >= self.n_layers, "not enough kernels specified"
-        assert len(config['dilations']) >= self.n_layers, "not enough dilations specified"
-        assert len(config['strides']) >= self.n_layers, "not enough strides specified"
-        self.res = [ResMod(config['filters'][i],
-                           config['kernels'][i],
-                           strides=config['strides'][i],
-                           dilation = config['dilations'][i],
-                           constrains=None,
-                           l1=config['l1'],
-                           l2=config['l2'],
-                           rate = config['rate']) for i in range(self.n_layers)]
-        
-        self.atte_loc = config['attention_loc']
-        self.use_atte = config['use_attention']
-        self.atte = SelfAttention(vocab)
-        self.flatten = Flatten()        
-        self.out = Dense(1, activation = activation, kernel_constraint=self.constraint)
-        
-    def call(self, x):
-        for i in range(slef.n_layers):
-            x = self.res[i](x)
-            if self.atte_loc == i and self.use_atte:
-                x, a_w = self.atte(x)
-        x = self.out(x)
-        x = self.flatten(x)
-        x = self.out(x)
-        return x, a_w
     
 class Discriminator(Model):
     def __init__(self, config, vocab, activation = 'sigmoid' ):
         super(Discriminator, self).__init__()
         self.conv=[]
-        self.constraint = Spectral_Norm()
+
         self.n_layers = config['n_layers']
-        assert len(config['filters']) >= self.n_layers, "not enough filters specified"
-        assert len(config['kernels']) >= self.n_layers, "not enough kernels specified"
-        assert len(config['dilations']) >= self.n_layers, "not enough dilations specified"
-        assert len(config['strides']) >= self.n_layers, "not enough strides specified"
         self.act = LeakyReLU(0.2)
+        self.inp = Input((config['max_length'], config['vocab_size']))
         for i in range(self.n_layers):
-            self.conv.append(Conv1D(config['filters'][i],
+            self.conv.append(tfa.layers.SpectralNormalization(Conv1D(config['filters'][i],
                                     config['kernels'][i], 
                                     strides=config['strides'][i],
                                     padding='same',
-                                    kernel_constraint = self.constraint,
-                                    use_bias = False))
+                                    use_bias = False)))
+            
         self.use_atte = config['use_attention']
         self.atte_loc = config['attention_loc']
-        self.atte = SelfAttention(config['filters'][self.atte_loc])
-        self.out = Conv1D(1, 4, strides=1,
-                           activation= activation,
-                           padding='same',
-                           kernel_constraint = self.constraint,
-                           use_bias = False)
         
-    def call(self, x):
+        self.atte = SelfAttention(config['filters'][self.atte_loc])
+        self.flat = Flatten()
+        self.dense = tfa.layers.SpectralNormalization(Dense(1,
+                           activation= activation,
+                           use_bias = False))
+        #self.dense = tfa.layers.SpectralNormalization(Conv1D(1, 3,
+        #                   activation= activation,
+        #                   use_bias = False))
+        
+        self.out = self.call(self.inp)                         
+        # Reinitial
+        super(Discriminator, self).__init__(
+        inputs=self.inp,
+        outputs=self.out)
+        
+    def call(self, x, training= True):
         for i in range(self.n_layers):
-            x = self.conv[i](x)
+            x = self.act(self.conv[i](x))
             if self.atte_loc == i and self.use_atte:
                 x, a_w = self.atte(x)
-        x = self.out(x)
+        x = self.flat(x)
+        x = self.dense(x)
         return x, a_w
+    
+    def build(self):
+        # Initialize the graph
+        self._is_graph_network = True
+        self._init_graph_network(
+            inputs=self.inp,
+            outputs=self.out
+        )
+        
+
     
 class Classifier(Model):
     def __init__(self, config):
@@ -126,7 +117,6 @@ class Classifier(Model):
         
         self.use_temporal_enc = config['use_global_pos'] 
         self.n_layers = config['n_layers']
-        self.constraint = Spectral_Norm()
         self.use_atte = config['use_attention']
         self.atte_loc = config['attention_loc']
         self.batch_size = config['batch_size']
@@ -141,19 +131,19 @@ class Classifier(Model):
             
         self.inp = Input((config['max_length'], config['vocab_size']), batch_size=self.batch_size)
         self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
-        self.conv2 = Conv1D(config['filters'][config['n_layers']], 6, padding= 'same', activation = 'relu')
+        self.conv2 = Conv1D(config['filters'][config['n_layers']-1]*2, 6, padding= 'same', activation = 'relu')
         
         if self.model_type == "Res":
-            self.res = [ResMod(config['filters'][i],
+            self.res = [ResMod_old(config['filters'][i],
                            config['kernels'][i],
                            strides=config['strides'][i],
                            dilation = config['dilations'][i],
                            constrains=None,
-                           l1=config['l1'],
-                           l2=config['l2'],
-                           rate = config['rate']) for i in range(self.n_layers)]
+                          # l1=config['l1'],
+                          # l2=config['l2'],
+                           ) for i in range(self.n_layers)]
         elif self.model_type == "ResPreAct":
-            self.res = [ResMod(config['filters'][i],
+            self.res = [ResModPreActSN(config['filters'][i],
                            config['kernels'][i],
                            strides=config['strides'][i],
                            dilation = config['dilations'][i],
@@ -162,10 +152,10 @@ class Classifier(Model):
                            l2=config['l2'],
                            rate = config['rate']) for i in range(self.n_layers)]
         
-        self.atte = SelfAttention(config['filters'][self.atte_loc])    
-        self.flatten = Flatten()
+        self.atte = SelfAttentionSN(config['filters'][self.atte_loc])    
+        self.flatten = tf.keras.layers.GlobalAveragePooling1D() #Flatten()
         self.out1 = Dense(1, activation = None) #, kernel_constraint=self.constraint)
-        
+        self.dout = Dropout(0.3)
 
         self.out = self.call(self.inp)                         
         # Reinitial
@@ -213,61 +203,26 @@ class Classifier(Model):
                 
         x = self.conv2(x)
         x = self.flatten(x)
+        x = self.dout(x, training = training)
         x = self.out1(x)
         return x
     
-class Classifier1(Model):
-    def __init__(self, filters, size, strides, dilation, vocab, input_shape = (512, 21), **kwargs):
-        super(Classifier1, self).__init__( **kwargs)
-        
-        self.input_layer = Input(input_shape)
-        
-        self.constraint = Spectral_Norm()
-        self.noise = tf.keras.layers.GaussianNoise(1.0)
-        self.sfm   = tf.keras.layers.Softmax(axis=-1)
-        
-        self.norm = [BatchNormalization(beta_initializer='zeros' ,gamma_initializer="ones") for i in range(10)]
-        self.res  = [Conv1D(filters[i], size[i], strides=strides[i], kernel_constraint=self.constraint) for i in range(9)]
-        self.atte = SelfAttention(vocab)
-        self.flatten = Flatten()
-        self.out1 = Dense(256, kernel_constraint=self.constraint)
-        self.out2 = Dense(1, activation = 'linear', kernel_constraint=self.constraint)
-        
-        # Get output layer with `call` method
-        self.out = self.call(self.input_layer)
 
-        # Reinitial
-        super(Classifier1, self).__init__(
-            inputs=self.input_layer,
-            outputs=self.out,
-            **kwargs)
-    def build(self):
-        # Initialize the graph
-        self._is_graph_network = True
-        self._init_graph_network(
-            inputs=self.input_layer,
-            outputs=self.out
-        )
-        
-    def call(self, x, training = True):
-        x = self.sfm(self.noise(x*5, training))
-        x, self.a_w = self.atte(x)
-        for i in range(9):
-            x = tf.keras.activations.relu((self.res[i](x)))
-            
-        x = self.flatten(x)
-        x = tf.keras.activations.relu((self.out1(x)))
-        x = self.out2(x)
-        return x
     
 class CycleGan(tf.keras.Model):
 
     def __init__(self, config, callbacks=None):
         super(CycleGan, self).__init__()
         self.G, self.F, self.D_x, self.D_y = self.load_models(config['CycleGan'])
+        
+        self.G.summary()
+        self.F.summary()
+        self.D_x.summary()
+        self.D_y.summary()
+        
         self.classifier = self.load_classifier(config['Classifier'])
-        self.lambda_cycle = config['CycleGan']['lambda_cycle']
-        self.lambda_id    = config['CycleGan']['lambda_id'] 
+        self.lambda_cycle = tf.Variable(config['CycleGan']['lambda_cycle'], dtype=tf.float32, trainable=False)
+        self.lambda_id    = tf.Variable(config['CycleGan']['lambda_id'], dtype=tf.float32, trainable=False) 
         self.add  = tf.keras.layers.Add()
         self.pcaobj = callbacks
     def compile( self, loss_obj, optimizers):
@@ -317,6 +272,32 @@ class CycleGan(tf.keras.Model):
         
         return ensemble_model
     
+    def gradient_penalty(self, Y_bin, X_bin):
+        """ Calculates the gradient penalty.
+
+        This loss is calculated on an interpolated image
+        and added to the discriminator loss.
+        """
+        # 1. Get the discriminator output for this interpolated image.
+        with tf.GradientTape() as gp_tape_y:
+            gp_tape_y.watch(Y_bin)
+            pred_y = self.D_y(Y_bin, training=True)
+            
+        with tf.GradientTape() as gp_tape_x:
+            gp_tape_x.watch(X_bin)
+            pred_x = self.D_x(X_bin, training=True)
+            
+        # 2. Calculate the gradients w.r.t to this interpolated image.
+        grads_y = gp_tape_y.gradient(pred_y, [Y_bin])[0]
+        grads_x = gp_tape_x.gradient(pred_x, [X_bin])[0]
+        
+        # 3. Calculate the norm of the gradients.
+        norm_y = tf.sqrt(tf.reduce_sum(tf.square(grads_y), axis=[1, 2]))
+        norm_x = tf.sqrt(tf.reduce_sum(tf.square(grads_x), axis=[1, 2]))
+        gp_y = tf.reduce_mean((norm_y - 1.0) ** 2)
+        gp_x = tf.reduce_mean((norm_x - 1.0) ** 2)
+        return gp_y, gp_x
+    
     @tf.function
     def train_step(self, batch_data):
 
@@ -331,7 +312,7 @@ class CycleGan(tf.keras.Model):
             
             fake_y, _ = self.G(X_bin, training=True)
             fake_x, _ = self.F(Y_bin, training=True)
-            #print("fake_y", fake_y)
+
             # Identity mapping
             same_x, _ = self.F(X_bin, training=True)
             same_y, _ = self.G(Y_bin, training=True)
@@ -340,44 +321,43 @@ class CycleGan(tf.keras.Model):
             cycled_x, _ = self.F(fake_y, training=True)
             cycled_y, _ = self.G(fake_x, training=True)
             #print("cycled_x", cycled_x)
+            
             # Discriminator output
             disc_real_y, _ = self.D_y(Y_bin, training=True)
             disc_fake_y, _ = self.D_y(fake_y, training=True)
+            
             disc_real_x, _ = self.D_x(X_bin, training=True)
             disc_fake_x, _ = self.D_x(fake_x, training=True)
-
+            #print("disc_real", disc_real_y)
+            #print("disc_fake", disc_fake_y)
 
             gen_G_loss = self.generator_loss_fn(disc_fake_y)
             gen_F_loss = self.generator_loss_fn(disc_fake_x)
             #print('Loss G:', gen_G_loss)
 
-            id_G_loss = self.cycle_loss_fn(Y_bin, same_y, W_y) # * self.lambda_cycle * self.lambda_id
-            id_F_loss = self.cycle_loss_fn(X_bin, same_x, W_x) # * self.lambda_cycle * self.lambda_id
+            id_G_loss = self.cycle_loss_fn(Y_bin, same_y, W_y)  * self.lambda_cycle * self.lambda_id
+            id_F_loss = self.cycle_loss_fn(X_bin, same_x, W_x)  * self.lambda_cycle * self.lambda_id
             #print('Id loss G:', id_G_loss)
             
-            gen_cycle_x_loss = self.cycle_loss_fn(X_bin, cycled_x, W_x) # * self.lambda_cycle 
-            gen_cycle_y_loss = self.cycle_loss_fn(Y_bin, cycled_y, W_y) # * self.lambda_cycle 
+            gen_cycle_x_loss = self.cycle_loss_fn(X_bin, cycled_x, W_x)  * self.lambda_cycle 
+            gen_cycle_y_loss = self.cycle_loss_fn(Y_bin, cycled_y, W_y)  * self.lambda_cycle 
             #print('C loss G', gen_cycle_x_loss)
 
 
-            # Discriminator loss
-            tot_loss_G = gen_G_loss + gen_cycle_x_loss * self.lambda_cycle + id_G_loss * self.lambda_cycle * self.lambda_id
-            tot_loss_F = gen_F_loss + gen_cycle_y_loss * self.lambda_cycle + id_F_loss * self.lambda_cycle * self.lambda_id
+            # Generator total loss
+            tot_loss_G = gen_G_loss  + gen_cycle_x_loss  + id_G_loss 
+            tot_loss_F = gen_F_loss  + gen_cycle_y_loss  + id_F_loss 
             #print('total loss G', tot_loss_G)
-            loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y)
-            loss_D_x = self.discriminator_loss_fn(disc_real_x, disc_fake_x)
+            
+            # Discriminator loss
+            #gp_y, gp_x = self.gradient_penalty(Y_bin, X_bin)
+            loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y) #+ gp_y * 10
+            loss_D_x = self.discriminator_loss_fn(disc_real_x, disc_fake_x) #+ gp_x * 10
             #print('total loss D_X', loss_D_x)
+            
         grads_G_gen = tape.gradient(tot_loss_G, self.G.trainable_variables)
         grads_F_gen = tape.gradient(tot_loss_F, self.F.trainable_variables)
         
-        
-        #grads_G_gen = tape.gradient(gen_G_loss, self.G.trainable_variables)
-        #grads_F_gen = tape.gradient(gen_F_loss, self.F.trainable_variables)
-        #grads_G_cyc = tape.gradient(gen_cycle_x_loss, self.G.trainable_variables)
-        #grads_F_cyc = tape.gradient(gen_cycle_y_loss, self.F.trainable_variables)
-        #grads_G_id = tape.gradient(id_G_loss, self.G.trainable_variables)
-        #grads_F_id = tape.gradient(id_F_loss, self.F.trainable_variables)
-
         # Get the gradients for the discriminators
         grads_disc_y = tape.gradient(loss_D_y, self.D_y.trainable_variables)
         grads_disc_x = tape.gradient(loss_D_x, self.D_x.trainable_variables)
@@ -386,10 +366,6 @@ class CycleGan(tf.keras.Model):
         self.gen_G_optimizer.apply_gradients(zip(grads_G_gen, self.G.trainable_variables))  
         self.gen_F_optimizer.apply_gradients(zip(grads_F_gen, self.F.trainable_variables))
         
-        #self.gen_G_optimizer.apply_gradients(zip(grads_G_cyc, self.G.trainable_variables))  
-        #self.gen_F_optimizer.apply_gradients(zip(grads_F_cyc, self.F.trainable_variables))
-        #self.gen_G_optimizer.apply_gradients(zip(grads_G_id, self.G.trainable_variables))  
-        #self.gen_F_optimizer.apply_gradients(zip(grads_F_id, self.F.trainable_variables))
 
         # Update the weights of the discriminators
         self.disc_Y_optimizer.apply_gradients(zip(grads_disc_y, self.D_y.trainable_variables))
@@ -398,14 +374,43 @@ class CycleGan(tf.keras.Model):
         return {
             "Gen_G_loss": gen_G_loss,
             "Cycle_X_loss": gen_cycle_x_loss,
+            "Id_X_loss": id_G_loss,
             "Disc_X_loss": loss_D_x,
             "Gen_F_loss": gen_F_loss,
             "Cycle_Y_loss": gen_cycle_y_loss,
+            "Id_Y_loss": id_G_loss,
             "Disc_Y_loss": loss_D_y
         }, ((fake_y, fake_x),(cycled_x, cycled_y))
     
-    #@tf.function
-    def validate_step(self, val_x, val_y,data, step):
+    @tf.function
+    def validate_step(self, batch_data):
+        _, X_bin, W_x= batch_data[0]
+        _, Y_bin, W_y= batch_data[1]
+        
+        shape = tf.shape(X_bin)
+        
+        logit_x, _ = self.G(X_bin)
+
+        W_x = tf.reshape(W_x, shape=(shape[0],shape[1],1))
+        W_x = tf.repeat(W_x, repeats=21, axis=2)
+        trans_x = tf.math.multiply(W_x, logit_x)
+        temp_real_x  = self.classifier(X_bin)
+        temp_fake_x = self.classifier(trans_x)
+        diff = tf.math.reduce_mean(tf.math.subtract(temp_real_x, temp_fake_x))
+        diff_x = diff
+        
+        logit_y, _ = self.F(Y_bin)
+        W_y = tf.reshape(W_y, shape=(shape[0],shape[1],1))
+        W_y = tf.repeat(W_y, repeats=21, axis=2)
+        trans_y = tf.math.multiply(W_y, logit_y)
+        temp_real_y  = self.classifier(Y_bin)
+        temp_fake_y = self.classifier(trans_y)
+        diff = tf.math.reduce_mean(tf.math.subtract(temp_real_y, temp_fake_y))
+        diff_y = diff
+        
+        return diff_x, diff_y
+    
+    def validate_step_old(self, val_x, val_y,data, step):
         # PCA clustering to measure diversity
         W_x = np.zeros((data['n_meso_val'],512)) #TODO
         W_y = np.zeros((data['n_thermo_val'],512)) #TODO
@@ -460,7 +465,7 @@ class CycleGan(tf.keras.Model):
 
         return diff_x.numpy(), diff_y.numpy()
     
-    @tf.function
+    #@tf.function
     def generate_step(self, batch_data):
 
         
@@ -469,5 +474,11 @@ class CycleGan(tf.keras.Model):
 
         fake_y, _ = self.G(X_bin, training=True)
         fake_x, _ = self.F(Y_bin, training=True)
-            
-        return  (fake_y, fake_x), (id_x, id_y), (W_x, W_y)
+        seqs = []
+
+        for seq, w in zip(list(tf.math.argmax(fake_y,axis=-1).numpy()), list(W_x.numpy())):
+              #  print("seq", seq)
+                seqs.append(pre.convert_table(seq, w))    
+        return seqs 
+    
+    
