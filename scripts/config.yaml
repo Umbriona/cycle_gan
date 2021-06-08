@@ -1,8 +1,8 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 0.1
-    lambda_id: 0.05
-    epochs: 200
+    lambda_cycle: 0.05
+    lambda_id: 0.015
+    epochs: 400
     batch_size: 32
     dir: "weights/model"
     Generator:

@@ -11,10 +11,12 @@
 
 **/weights
 
+
 # snakemake files
 
-*.snakemake
+**/.snakemake
 
 # notebook checkpoints
 
-*.ipynb_checkpoints
+**/.ipynb_checkpoints
+
