@@ -385,8 +385,8 @@ def train(config, model, data, time):
                 tf.summary.scalar('temp_diff', diff_x, step=epoch, description = 'temp_diff_x')
             with temp_diff_summary_y.as_default():
                 tf.summary.scalar('temp_diff', diff_y, step=epoch, description = 'temp_diff_y')
-
-
+            
+            model.save_weights(os.path.join(config['Results']['base_dir'],time,'weights','cycle_gan_model_'+str(epoch)))
         if args.verbose:    
             print("Epoch: %d Loss_G: %2.4f Loss_F: %2.4f Loss_cycle_X: %2.4f Loss_cycle_Y: %2.4f Loss_D_Y: %2.4f Loss_D_X %2.4f" % 
               (epoch, float(metrics['loss_G'].result()),
@@ -479,15 +479,17 @@ def main():
     optimizers = load_optimizers(config['CycleGan']['Optimizers'])
     model.compile(loss_obj, optimizers)
     
+    result_dir = os.path.join(config['Results']['base_dir'],time)
+    os.mkdir(os.path.join(result_dir))
+    os.mkdir(os.path.join(result_dir,'weights'))
+    
     # Initiate Training
 
     history = train(config, model, data, time)
     
     #writing results
     
-    result_dir = os.path.join(config['Results']['base_dir'],time)
-    os.mkdir(os.path.join(result_dir))
-    os.mkdir(os.path.join(result_dir,'weights'))
+
     # Save model
     model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model'))
     # Write history obj

@@ -10,3 +10,7 @@
 # Ignore weights folder
 
 **/weights
+
+**/.snakemake
+
+**/.ipynb_checkpoints
