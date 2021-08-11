@@ -249,3 +249,7 @@ def prepare_dataset_reg(file_path, file_names,
         dataset_validate = tf.data.Dataset.from_tensor_slices((np.array(dict_['seq_bin'], dtype = np.float32),
                                                                np.array(dict_['ogt'], dtype = np.float32)))
         return  dataset_validate
+    
+def prepare_dataset_classifier(dir_files):
+    
+    
