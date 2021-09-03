@@ -250,6 +250,74 @@ def prepare_dataset_reg(file_path, file_names,
                                                                np.array(dict_['ogt'], dtype = np.float32)))
         return  dataset_validate
     
-def prepare_dataset_classifier(dir_files):
+
+
+def _parse_function_reg(item):
+    feature_description = {
+    'temp': tf.io.FixedLenFeature([], tf.float32, default_value=0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value=np.zeros((512,)))
+}
+  # Parse the input `tf.train.Example` proto using the dictionary above.
+    item = tf.io.parse_single_example(item, feature_description)
+    item = (tf.one_hot(item['seq'],21, off_value=0.0), item["temp"])
+    return item
+
+def _parse_function_in(item):
+    feature_description = {
+    'temp': tf.io.FixedLenFeature([], tf.float32, default_value=0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value=np.zeros((512,)))
+}
+  # Parse the input `tf.train.Example` proto using the dictionary above.
+    item = tf.io.parse_single_example(item, feature_description)
+    item = (tf.one_hot(item['seq'],21, off_value=0.0), 1.0)
+    return item
+
+def _parse_function_out(item):
+    feature_description = {
+    'temp': tf.io.FixedLenFeature([], tf.float32, default_value=0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value=np.zeros((512,)))
+}
+  # Parse the input `tf.train.Example` proto using the dictionary above.
+    item = tf.io.parse_single_example(item, feature_description)
+    item = (tf.one_hot(item['seq'],21, off_value=0.0), 0.0)
+    return item
+
+def parse_upsample(name):
+    up_sample = int(name.split('.')[0].split('_')[-1])
+    return up_sample
     
+def load_data_class(config):
+    # get file names and paths
+    base_dir = config["base_dir"]
+    file_in = config["file_in"]
+    files_out = config["file_out"]
     
+    # get up sample
+    up_sample_in = parse_upsample(file_in)
+    up_sample_out = [parse_upsample(file_out) for file_out in files_out]
+    
+    # load and parse data from in group
+    tfdata_in = tf.data.TFRecordDataset(os.path.join(base_dir, file_in))
+    parsed_tfdata_train = tfdata_in.map(_parse_function_in).skip(500).repeat(up_sample_in)
+    parsed_tfdata_val   = tfdata_in.map(_parse_function_in).take(500)
+
+    # load and parse data from out group
+    for i, file_out in enumerate(files_out):
+        tfdata_out = tf.data.TFRecordDataset(os.path.join(base_dir, file_out))
+        parsed_tfdata_train = parsed_tfdata_train.concatenate(tfdata_out.map(_parse_function_out).skip(500).repeat(up_sample_out[i]))
+        parsed_tfdata_val   = parsed_tfdata_val.concatenate(tfdata_out.map(_parse_function_out).take(500))
+
+    return parsed_tfdata_train, parsed_tfdata_val
+    
+def load_data_reg(config):
+    
+    # get file names and paths
+    base_dir = config["base_dir"]
+    file_in = config["file_in"]
+    
+    # load and parse data from in group
+    tfdata_in = tf.data.TFRecordDataset(os.path.join(base_dir, file_in))
+    parsed_tfdata_train = tfdata_in.map(_parse_function_reg).skip(2000)
+    parsed_tfdata_val   = tfdata_in.map(_parse_function_reg).take(2000)
+    
+    return parsed_tfdata_train, parsed_tfdata_val

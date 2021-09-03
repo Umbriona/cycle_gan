@@ -3,10 +3,115 @@ import tensorflow_addons as tfa
 from tensorflow.keras.constraints import Constraint
 from tensorflow.keras.layers import Layer, Conv1D, BatchNormalization, LayerNormalization, Add, Concatenate, LeakyReLU, Softmax, Dropout
 from tensorflow.keras.regularizers import L1L2
-
+from typeguard import typechecked
 
 
 POWER_ITERATIONS = 5
+
+
+class SpectralNormalization(tf.keras.layers.Wrapper):
+    """ From tensorflow addons https://github.com/tensorflow/addons/blob/v0.14.0/tensorflow_addons/layers/spectral_normalization.py
+    Performs spectral normalization on weights.
+    This wrapper controls the Lipschitz constant of the layer by
+    constraining its spectral norm, which can stabilize the training of GANs.
+    See [Spectral Normalization for Generative Adversarial Networks](https://arxiv.org/abs/1802.05957).
+    Wrap `tf.keras.layers.Conv2D`:
+    >>> x = np.random.rand(1, 10, 10, 1)
+    >>> conv2d = SpectralNormalization(tf.keras.layers.Conv2D(2, 2))
+    >>> y = conv2d(x)
+    >>> y.shape
+    TensorShape([1, 9, 9, 2])
+    Wrap `tf.keras.layers.Dense`:
+    >>> x = np.random.rand(1, 10, 10, 1)
+    >>> dense = SpectralNormalization(tf.keras.layers.Dense(10))
+    >>> y = dense(x)
+    >>> y.shape
+    TensorShape([1, 10, 10, 10])
+    Args:
+      layer: A `tf.keras.layers.Layer` instance that
+        has either `kernel` or `embeddings` attribute.
+      power_iterations: `int`, the number of iterations during normalization.
+    Raises:
+      AssertionError: If not initialized with a `Layer` instance.
+      ValueError: If initialized with negative `power_iterations`.
+      AttributeError: If `layer` does not has `kernel` or `embeddings` attribute.
+    """
+
+    @typechecked
+    def __init__(self, layer: tf.keras.layers, power_iterations: int = 1, **kwargs):
+        super().__init__(layer, **kwargs)
+        if power_iterations <= 0:
+            raise ValueError(
+                "`power_iterations` should be greater than zero, got "
+                "`power_iterations={}`".format(power_iterations)
+            )
+        self.power_iterations = power_iterations
+        self._initialized = False
+
+    def build(self, input_shape):
+        """Build `Layer`"""
+        super().build(input_shape)
+        input_shape = tf.TensorShape(input_shape)
+        self.input_spec = tf.keras.layers.InputSpec(shape=[None] + input_shape[1:])
+
+        if hasattr(self.layer, "kernel"):
+            self.w = self.layer.kernel
+        elif hasattr(self.layer, "embeddings"):
+            self.w = self.layer.embeddings
+        else:
+            raise AttributeError(
+                "{} object has no attribute 'kernel' nor "
+                "'embeddings'".format(type(self.layer).__name__)
+            )
+
+        self.w_shape = self.w.shape.as_list()
+
+        self.u = self.add_weight(
+            shape=(1, self.w_shape[-1]),
+            initializer=tf.initializers.TruncatedNormal(stddev=0.02),
+            trainable=False,
+            name="sn_u",
+            dtype=self.w.dtype,
+        )
+
+    def call(self, inputs, training=None):
+        """Call `Layer`"""
+        if training is None:
+            training = tf.keras.backend.learning_phase()
+
+        if training:
+            self.normalize_weights()
+
+        output = self.layer(inputs)
+        return output
+
+    def compute_output_shape(self, input_shape):
+        return tf.TensorShape(self.layer.compute_output_shape(input_shape).as_list())
+
+    @tf.function
+    def normalize_weights(self):
+        """Generate spectral normalized weights.
+        This method will update the value of `self.w` with the
+        spectral normalized value, so that the layer is ready for `call()`.
+        """
+
+        w = tf.reshape(self.w, [-1, self.w_shape[-1]])
+        u = self.u
+
+        with tf.name_scope("spectral_normalize"):
+            for _ in range(self.power_iterations):
+                v = tf.math.l2_normalize(tf.matmul(u, w, transpose_b=True))
+                u = tf.math.l2_normalize(tf.matmul(v, w))
+
+            sigma = tf.matmul(tf.matmul(v, w), u, transpose_b=True)
+
+            self.w.assign(tf.cast(self.w / sigma, dtype=tf.float32)) # Cast to float32 because mixed presission
+            self.u.assign(tf.cast(u, dtype=tf.float32)) # Cast to float32 because mixed presission
+
+    def get_config(self):
+        config = {"power_iterations": self.power_iterations}
+        base_config = super().get_config()
+        return {**base_config, **config}
 
 
     
@@ -80,10 +185,10 @@ class SelfAttentionSN(Layer):
     def __init__(self,  filters ):
         super(SelfAttentionSN, self).__init__()
         
-        self.kernel_querry = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.kernel_key    = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.kernel_value  = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.out           = tfa.layers.SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.kernel_querry = SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.kernel_key    = SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.kernel_value  = SpectralNormalization(tf.keras.layers.Dense(filters))
+        self.out           = SpectralNormalization(tf.keras.layers.Dense(filters))
         self.num_heads = 8
         self.filters = filters
         self.depth = filters // self.num_heads
@@ -405,14 +510,14 @@ class ResModPreActSN(Layer):
         self.l1 = l1
         self.l2 = l2
         self.rate = rate
-        self.conv1 = tfa.layers.SpectralNormalization(Conv1D(self.filters, 
+        self.conv1 = SpectralNormalization(Conv1D(self.filters, 
                                                              self.kernel,
                                                              dilation_rate = self.dilation,
                                                              padding = 'same',
                                                              use_bias = True,
                                                              kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
         
-        self.conv2 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+        self.conv2 = SpectralNormalization(Conv1D(self.filters,
                                                              self.kernel,
                                                              dilation_rate = self.dilation,
                                                              padding = 'same',
@@ -420,12 +525,12 @@ class ResModPreActSN(Layer):
                                                              kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
                     
             
-        self.conv  = tfa.layers.SpectralNormalization(Conv1D(self.filters, 1,
+        self.conv  = SpectralNormalization(Conv1D(self.filters, 1,
                                                              padding = 'same',
                                                              use_bias = False,
                                                              kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
         if self.strides > 1:
-            self.conv3 = tfa.layers.SpectralNormalization(Conv1D(self.filters,
+            self.conv3 = SpectralNormalization(Conv1D(self.filters,
                                                                  self.kernel,
                                                                  dilation_rate = 1,
                                                                  strides = self.strides,

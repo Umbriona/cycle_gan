@@ -21,7 +21,8 @@ Classifier:
 Data:
     max_length: 512
     max_samples: 4000000
-    dir: '../data/OGT_Classes'
-    names_reg: ['ogt_all.fasta']
+    base_dir: '../data/Combined_data/published/Groups_5/RECORDS'
+    file_in: '2_22_19.tfrecord'
+    file_out: ["22_42_1.tfrecord", "42_62_13.tfrecord", "62_82_34.tfrecord", "82_103_105.tfrecord"]
 
 

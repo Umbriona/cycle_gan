@@ -4,6 +4,8 @@ currentdir = os.getcwd()
 updir = os.path.dirname(currentdir)
 sys.path.append(updir)
 
+
+
 import argparse
 
 import numpy as np
@@ -20,6 +22,10 @@ from utils import models_new
 from utils.callbacks import coef_det_k
 import pandas as pd
 import yaml
+
+from tensorflow.keras import mixed_precision
+policy = mixed_precision.Policy('mixed_float16')
+mixed_precision.set_global_policy(policy)
 
 
 parser = argparse.ArgumentParser(""" """)
@@ -43,16 +49,12 @@ def main(args):
         config = yaml.load(file_descriptor, Loader=yaml.FullLoader)
         
         
-    
-    data_train, data_val = pre.prepare_dataset_reg(config['Data']['dir'], config['Data']['names_reg'],
-                               seq_length = config['Data']['max_length'],
-                               t_v_split = 0.1,
-                               max_samples = config['Data']['max_samples'])
+    data_train, data_val = pre.load_data_class(config["Data"])
     
     
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
-    model = models_new.Classifier(config['Classifier'])
-    model.compile(optimizer=opt, loss='mse', metrics=[coef_det_k])
+    model = models_new.Classifier_class(config['Classifier'])
+    model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[coef_det_k])
     model.summary()
     
     x_train = data_train.shuffle(buffer_size = 150000, reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
