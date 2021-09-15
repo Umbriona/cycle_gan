@@ -26,3 +26,5 @@
 
 # pycache
 *.pyc
+
+*.sif
