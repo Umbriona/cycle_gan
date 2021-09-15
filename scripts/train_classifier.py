@@ -65,7 +65,7 @@ def main(args):
     
     x_train = data_train.shuffle(buffer_size = int(3e8), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                              drop_remainder=True) 
-    x_val = data_val.shuffle(buffer_size = 150000, reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
+    x_val = data_val.shuffle(buffer_size = int(3e9), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                          drop_remainder=True)
     
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=5, min_lr=0.000001)
