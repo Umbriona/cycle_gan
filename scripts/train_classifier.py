@@ -18,7 +18,7 @@ from tensorflow.keras import layers
 
 
 from utils import preprocessing as pre
-from utils import models_classifyer
+from utils import models_classifyer as models
 from utils.callbacks import coef_det_k
 import pandas as pd
 import yaml
@@ -55,9 +55,9 @@ def main(args):
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
     
     if config['model'] == "class":
-        model = models_new.Classifier_class(config['Classifier'])
+        model = modelsClassifier_class(config['Classifier'])
     else:
-        model = models_new.Classifier_reg(config['Classifier'])
+        model = models.Classifier_reg(config['Classifier'])
         
     ba = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
     model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
