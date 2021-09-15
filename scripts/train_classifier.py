@@ -24,8 +24,8 @@ import pandas as pd
 import yaml
 
 from tensorflow.keras import mixed_precision
-policy = mixed_precision.Policy('mixed_float16')
-mixed_precision.set_global_policy(policy)
+#policy = mixed_precision.Policy('mixed_float16')
+#mixed_precision.set_global_policy(policy)
 
 
 parser = argparse.ArgumentParser(""" """)
@@ -63,9 +63,9 @@ def main(args):
     model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
     model.summary()
     
-    x_train = data_train.shuffle(buffer_size = int(3e8), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
+    x_train = data_train.shuffle(buffer_size = int(1e6), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                              drop_remainder=True) 
-    x_val = data_val.shuffle(buffer_size = int(3e9), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
+    x_val = data_val.shuffle(buffer_size = int(3e4), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                          drop_remainder=True)
     
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=5, min_lr=0.000001)
