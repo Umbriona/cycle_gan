@@ -18,7 +18,7 @@ from tensorflow.keras import layers
 
 
 from utils import preprocessing as pre
-from utils import models_new
+from utils import models_classifyer
 from utils.callbacks import coef_det_k
 import pandas as pd
 import yaml
@@ -53,11 +53,17 @@ def main(args):
     
     
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
-    model = models_new.Classifier_class(config['Classifier'])
-    model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[coef_det_k])
+    
+    if config['model'] == "class":
+        model = models_new.Classifier_class(config['Classifier'])
+    else:
+        model = models_new.Classifier_reg(config['Classifier'])
+        
+    ba = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
+    model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
     model.summary()
     
-    x_train = data_train.shuffle(buffer_size = 150000, reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
+    x_train = data_train.shuffle(buffer_size = int(3e8), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                              drop_remainder=True) 
     x_val = data_val.shuffle(buffer_size = 150000, reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                          drop_remainder=True)

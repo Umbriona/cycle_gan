@@ -285,6 +285,11 @@ def _parse_function_out(item):
 def parse_upsample(name):
     up_sample = int(name.split('.')[0].split('_')[-1])
     return up_sample
+
+def parse_ofset(name):
+    temp_low = int(name.split('_')[0])
+    temp_high= int(name.split('_')[1])
+    return temp_high - temp_low
     
 def load_data_class(config):
     # get file names and paths
@@ -314,6 +319,8 @@ def load_data_reg(config):
     # get file names and paths
     base_dir = config["base_dir"]
     file_in = config["file_in"]
+    
+
     
     # load and parse data from in group
     tfdata_in = tf.data.TFRecordDataset(os.path.join(base_dir, file_in))

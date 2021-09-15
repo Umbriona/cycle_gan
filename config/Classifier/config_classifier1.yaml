@@ -1,3 +1,4 @@
+model: "class"
 Classifier:
     vocab_size: 21
     model_type: "ResPreAct"
