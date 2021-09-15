@@ -55,7 +55,7 @@ def main(args):
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
     
     if config['model'] == "class":
-        model = modelsClassifier_class(config['Classifier'])
+        model = models.Classifier_class(config['Classifier'])
     else:
         model = models.Classifier_reg(config['Classifier'])
         
