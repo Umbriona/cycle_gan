@@ -63,7 +63,7 @@ def main(args):
     model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
     model.summary()
     
-    x_train = data_train.shuffle(buffer_size = int(1e6), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
+    x_train = data_train.shuffle(buffer_size = int(1e5), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                              drop_remainder=True) 
     x_val = data_val.shuffle(buffer_size = int(3e4), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
                                                          drop_remainder=True)
