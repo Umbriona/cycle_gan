@@ -51,7 +51,7 @@ def main(args):
         
     data_train, data_val = pre.load_data_class(config["Data"])
     
-    
+    #
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
     
     if config['model'] == "class":
@@ -63,10 +63,8 @@ def main(args):
     model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
     model.summary()
     
-    x_train = data_train.shuffle(buffer_size = int(1e5), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
-                                                             drop_remainder=True) 
-    x_val = data_val.shuffle(buffer_size = int(3e4), reshuffle_each_iteration=True).batch(config['Classifier']['batch_size'],
-                                                         drop_remainder=True)
+    x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
+    x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
     
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=5, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=10, min_delta = 0.01)
