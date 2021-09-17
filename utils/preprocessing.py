@@ -264,22 +264,26 @@ def _parse_function_reg(item):
 
 def _parse_function_in(item):
     feature_description = {
-    'temp': tf.io.FixedLenFeature([], tf.float32, default_value=0.0),
-    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value=np.zeros((512,)))
+    'temp': tf.io.FixedLenFeature([], tf.float32, default_value = 0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value = -np.ones((512,)))
 }
   # Parse the input `tf.train.Example` proto using the dictionary above.
     item = tf.io.parse_single_example(item, feature_description)
-    item = (tf.one_hot(item['seq'],21, off_value=0.0), 1.0)
+    item = (item['seq'], 1.0)
     return item
 
 def _parse_function_out(item):
     feature_description = {
-    'temp': tf.io.FixedLenFeature([], tf.float32, default_value=0.0),
-    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value=np.zeros((512,)))
+    'temp': tf.io.FixedLenFeature([], tf.float32, default_value = 0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value = -np.ones((512,)))
 }
   # Parse the input `tf.train.Example` proto using the dictionary above.
     item = tf.io.parse_single_example(item, feature_description)
-    item = (tf.one_hot(item['seq'],21, off_value=0.0), 0.0)
+    item = (item['seq'], 0.0)
+    return item
+
+def _parse_function_onehot(item1, item2):
+    item = (tf.one_hot(item1,21, off_value=0.0), item2)
     return item
 
 def parse_upsample(name):
@@ -296,6 +300,7 @@ def load_data_class(config):
     base_dir = config["base_dir"]
     file_in = config["file_in"]
     files_out = config["file_out"]
+    chards = int(config["shards"])
     
     # get up sample
     up_sample_in = parse_upsample(file_in)
@@ -303,16 +308,23 @@ def load_data_class(config):
     
     # load and parse data from in group
     tfdata_in = tf.data.TFRecordDataset(os.path.join(base_dir, file_in))
-    parsed_tfdata_train = tfdata_in.map(_parse_function_in).skip(500).repeat(up_sample_in)
-    parsed_tfdata_val   = tfdata_in.map(_parse_function_in).take(500)
-
+    
+    tfdata_train = tfdata_in.skip(500).repeat(up_sample_in).map(_parse_function_in)
+    tfdata_val   = tfdata_in.take(500).map(_parse_function_in)
+    
     # load and parse data from out group
     for i, file_out in enumerate(files_out):
         tfdata_out = tf.data.TFRecordDataset(os.path.join(base_dir, file_out))
-        parsed_tfdata_train = parsed_tfdata_train.concatenate(tfdata_out.map(_parse_function_out).skip(500).repeat(up_sample_out[i]))
-        parsed_tfdata_val   = parsed_tfdata_val.concatenate(tfdata_out.map(_parse_function_out).take(500))
+        tfdata_train = tfdata_train.concatenate(tfdata_out.skip(500).map(_parse_function_out).repeat(up_sample_out[i]))
+        tfdata_val   = tfdata_val.concatenate(tfdata_out.take(500).map(_parse_function_out))
+    
+    training_chards = []
 
-    return parsed_tfdata_train, parsed_tfdata_val
+    for idx in range(chards):
+        training_chards.append(tfdata_train.shard(chards, idx).shuffle(buffer_size = int(1e6), reshuffle_each_iteration=True).map(_parse_function_onehot))
+    tfdata_val = tfdata_val.shuffle(buffer_size = int(1e4), reshuffle_each_iteration=True).map(_parse_function_onehot) 
+    
+    return training_chards, tfdata_val
     
 def load_data_reg(config):
     
