@@ -25,7 +25,7 @@ class Classifier_reg(Model):
             self.get_time()
             self.emb  = Embedding(config['max_length'], config['temporal_encode'])
             
-        self.inp = Input((config['max_length'], config['vocab_size']), batch_size=self.batch_size)
+        self.inp = Input((config['max_length'], config['vocab_size']))
         self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
         self.conv2 = Conv1D(config['filters'][config['n_layers']-1]*2, 6, padding= 'same', activation = 'relu')
         
@@ -122,7 +122,7 @@ class Classifier_class(Model):
             self.get_time()
             self.emb  = Embedding(config['max_length'], config['temporal_encode'])
             
-        self.inp = Input((config['max_length'], config['vocab_size']), batch_size=self.batch_size)
+        self.inp = Input((config['max_length'], config['vocab_size']))
         self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
         self.conv2 = Conv1D(config['filters'][config['n_layers']-1]*2, 6, padding= 'same', activation = 'relu')
         
