@@ -62,14 +62,14 @@ def main(args):
     ba = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
     model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
     model.summary()
-    
-    x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
-    x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
-    
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=5, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=10, min_delta = 0.01)
     
-    history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
+    x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
+    
+    for idx in range(config["Data"]["shards"]:)
+        x_train = data_train[idx].batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
+        history = model.fit(x_train, epochs=1, validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
     model.save(config['Classifier']['file'])
     df = pd.DataFrame(history.history)

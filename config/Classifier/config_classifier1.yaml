@@ -25,5 +25,6 @@ Data:
     base_dir: '/data/RECORDS'
     file_in: '2_22_19.tfrecord'
     file_out: ["22_42_1.tfrecord", "42_62_13.tfrecord", "62_82_34.tfrecord", "82_103_105.tfrecord"]
+    shards: 100
 
 

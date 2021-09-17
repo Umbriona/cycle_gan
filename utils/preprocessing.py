@@ -300,7 +300,7 @@ def load_data_class(config):
     base_dir = config["base_dir"]
     file_in = config["file_in"]
     files_out = config["file_out"]
-    chards = int(config["chards"])
+    chards = int(config["shards"])
     
     # get up sample
     up_sample_in = parse_upsample(file_in)
