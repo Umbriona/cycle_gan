@@ -25,7 +25,7 @@ import yaml
 
 #from tensorflow.keras import mixed_precision
 #policy = mixed_precision.Policy('mixed_float16')
-mixed_precision.set_global_policy(policy)
+#mixed_precision.set_global_policy(policy)
 
 
 parser = argparse.ArgumentParser(""" """)
