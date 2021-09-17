@@ -321,7 +321,7 @@ def load_data_class(config):
     training_chards = []
 
     for idx in range(chards):
-        training_chards.append(tfdata_train.shard(chards, idx).shuffle(buffer_size = int(1e6), reshuffle_each_iteration=True).map(_parse_function_onehot))
+        training_chards.append(tfdata_train.shard(chards, idx).shuffle(buffer_size = int(1e5), reshuffle_each_iteration=True).map(_parse_function_onehot))
     tfdata_val = tfdata_val.shuffle(buffer_size = int(1e4), reshuffle_each_iteration=True).map(_parse_function_onehot) 
     
     return training_chards, tfdata_val

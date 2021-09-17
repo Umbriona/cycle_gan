@@ -16,7 +16,7 @@ Classifier:
     use_global_pos: False
     temporal_encode: 21
     learning_rate: 0.0001
-    batch_size: 256
+    batch_size: 64
     epochs: 300
     file: "../weights/classifier11.h5"
 Data:
