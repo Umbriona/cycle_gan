@@ -67,7 +67,7 @@ def main(args):
     
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
     
-    for idx in range(config["Data"]["shards"]:)
+    for idx in range(config["Data"]["shards"]):
         x_train = data_train[idx].batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
         history = model.fit(x_train, epochs=1, validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
