@@ -69,10 +69,9 @@ def main(args):
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
     
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
+    x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
     
-    for idx in range(config["Data"]["shards"]):
-        x_train = data_train[idx].batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
-        history = model.fit(x_train, epochs=10, validation_data = x_val, callbacks=[reduce_lr, early_stop])
+    history = model.fit(x_train, epochs=1, validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
     model.save(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
