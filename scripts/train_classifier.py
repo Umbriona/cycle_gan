@@ -56,14 +56,17 @@ def main(args):
     
     if config['model'] == "class":
         model = models.Classifier_class(config['Classifier'])
+        metric = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
+        loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
     else:
         model = models.Classifier_reg(config['Classifier'])
+        metric = coef_det_k
+        loss = tf.keras.losses.MeanSquaredError(reduction=losses_utils.ReductionV2.AUTO, name='mean_squared_error')
         
-    ba = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
-    model.compile(optimizer=opt, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=[ba])
+    model.compile(optimizer=opt, loss=loss, metrics=[metric])
     model.summary()
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=110, min_lr=0.000001)
-    early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=10, min_delta = 0.01)
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
+    early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
     
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
     
