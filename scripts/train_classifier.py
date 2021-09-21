@@ -73,9 +73,9 @@ def main(args):
     
     history = model.fit(x_train, epochs=config['Classifier']['batch_size'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
-    model.save(config['Classifier']['file'])
+    model.save_weights(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
-    df.to_csv(args.output[:-2]+'csv')
+    df.to_csv(args.output[:-2])
     
     return 0
 
