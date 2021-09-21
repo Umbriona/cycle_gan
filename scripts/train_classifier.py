@@ -68,10 +68,10 @@ def main(args):
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
     
-    x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30)
-    x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(30) 
+    x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
+    x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE) 
     
-    history = model.fit(x_train, epochs=1, validation_data = x_val, callbacks=[reduce_lr, early_stop])
+    history = model.fit(x_train, epochs=config['Classifier']['batch_size'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
     model.save(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
