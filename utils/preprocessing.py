@@ -318,11 +318,13 @@ def load_data(config):
     tfdata_train = file_names_train.interleave(lambda filename: tf.data.TFRecordDataset(filename), num_parallel_calls = 8 )
     tfdata_val = file_names_val.interleave(lambda filename: tf.data.TFRecordDataset(filename), num_parallel_calls = 8 )
     
+    tfdata_train = tfdata_train.cache()
+    tfdata_val = tfdata_val.cache()
+    
     tfdata_train = tfdata_train.map(_parse_function_onehot, num_parallel_calls = 8)
     tfdata_val = tfdata_val.map(_parse_function_onehot, num_parallel_calls = 8)
     
-    tfdata_train = tfdata_train.cache()
-    tfdata_val = tfdata_val.cache()
+
     
     tfdata_train = tfdata_train.shuffle(int(1e5), reshuffle_each_iteration=True)
     tfdata_val = tfdata_val.shuffle(int(1e5), reshuffle_each_iteration=True)
