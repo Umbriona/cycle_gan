@@ -26,8 +26,8 @@ class Classifier_reg(Model):
             self.emb  = Embedding(config['max_length'], config['temporal_encode'])
             
         self.inp = Input((config['max_length'], config['vocab_size']))
-        self.conv1 = Conv1D(config['filters'][0], 6, padding= 'same', activation = 'relu')
-        self.conv2 = Conv1D(config['filters'][config['n_layers']-1]*2, 6, padding= 'same', activation = 'relu')
+        self.conv1 = Conv1D(config['filters'][0], 9, padding= 'same', activation = 'relu')
+        self.conv2 = Conv1D(config['filters'][config['n_layers']-1]*2, 9, padding= 'same', activation = 'relu')
         
         if self.model_type == "Res":
             self.res = [ResMod_old(config['filters'][i],
@@ -50,7 +50,8 @@ class Classifier_reg(Model):
         
         self.atte = SelfAttentionSN(config['filters'][self.atte_loc])    
         self.flatten = tf.keras.layers.GlobalAveragePooling1D() #Flatten()
-        self.out1 = Dense(1, activation = None) #, kernel_constraint=self.constraint)
+        self.dense(config['filters'][config['n_layers']-1], activation = 'relu')
+        self.out1 = Dense(1, activation = None) 
         self.outa = Activation('linear', dtype='float32')
         self.dout = Dropout(0.3)
 
@@ -100,6 +101,7 @@ class Classifier_reg(Model):
                 
         x = self.conv2(x)
         x = self.flatten(x)
+        x = self.dense(x)
         x = self.dout(x, training = training)
         x = self.out1(x)
         return self.outa(x)

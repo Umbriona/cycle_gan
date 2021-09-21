@@ -63,7 +63,7 @@ def main(args):
         metric = coef_det_k
         loss = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.AUTO, name='mean_squared_error')
         
-    model.compile(optimizer=opt, loss=loss, metrics=[metric])
+    model.compile(optimizer=opt, loss=loss, metrics=[metric], run_eagerly = False)
     model.summary()
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
