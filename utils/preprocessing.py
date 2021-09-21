@@ -311,7 +311,7 @@ def load_data(config):
     #num_shards = len(os.listdir(files_train))
 
     # get file names      Dataset
-    file_names_train = tf.data.Dataset.list_files(files_train).shuffle(num_shards).shard(100, 0)
+    file_names_train = tf.data.Dataset.list_files(files_train).shuffle(num_shards)
     file_names_val = tf.data.Dataset.list_files(files_val).shuffle(num_shards)
     # load and parse data from in group
 
