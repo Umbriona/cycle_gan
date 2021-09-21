@@ -50,7 +50,7 @@ class Classifier_reg(Model):
         
         self.atte = SelfAttentionSN(config['filters'][self.atte_loc])    
         self.flatten = tf.keras.layers.GlobalAveragePooling1D() #Flatten()
-        self.dense(config['filters'][config['n_layers']-1], activation = 'relu')
+        self.dense = Dense(config['filters'][config['n_layers']-1], activation = 'relu')
         self.out1 = Dense(1, activation = None) 
         self.outa = Activation('linear', dtype='float32')
         self.dout = Dropout(0.3)
