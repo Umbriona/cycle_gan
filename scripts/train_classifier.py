@@ -49,7 +49,7 @@ def main(args):
         config = yaml.load(file_descriptor, Loader=yaml.FullLoader)
         
         
-    data_train, data_val = pre.load_data_class(config["Data"])
+    data_train, data_val = pre.load_data(config["Data"])
     
     #
     opt = keras.optimizers.Adam(learning_rate=config['Classifier']['learning_rate'])
