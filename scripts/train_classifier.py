@@ -61,7 +61,7 @@ def main(args):
     else:
         model = models.Classifier_reg(config['Classifier'])
         metric = coef_det_k
-        loss = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction, name='mean_squared_error')
+        loss = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.AUTO, name='mean_squared_error')
         
     model.compile(optimizer=opt, loss=loss, metrics=[metric])
     model.summary()
