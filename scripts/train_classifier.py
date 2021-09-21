@@ -71,11 +71,11 @@ def main(args):
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
     x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE) 
     
-    history = model.fit(x_train, epochs=config['Classifier']['batch_size'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
+    history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
     
     model.save_weights(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
-    df.to_csv(args.output[:-2])
+    df.to_csv(args.output)
     
     return 0
 
