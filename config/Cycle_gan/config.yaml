@@ -11,9 +11,10 @@ CycleGan:
         max_length: 512
         vocab_size: 21
         filters: [64, 64, 128, 128, 256, 256]
-        kernels: [3, 3, 3, 3, 3, 3]
-        dilations: [1, 1, 1, 1, 1, 1]
+        kernels: [9, 9, 9, 9, 9, 9]
+        dilations: [2, 2, 2, 2, 2, 2]
         strides: [1, 1, 1, 1, 1, 1]
+        down_sample: 2
         use_attention: True
         attention_loc: 4
         use_gumbel: True
@@ -22,13 +23,15 @@ CycleGan:
         l2: 0.01
         rate: 0.2
     Discriminator:
-        n_layers: 4
+        type: "res" # conv or res
+        n_layers: 6
         max_length: 512
         vocab_size: 21
         filters: [64, 64, 128, 128, 256, 256]
-        kernels: [3, 3, 3, 3, 3, 3]
-        dilations: [1, 1, 1, 1, 1, 1]
-        strides: [2, 2, 2, 2, 2, 2]
+        kernels: [9, 9, 9, 9, 9, 9]
+        dilations: [1, 2, 2, 1, 2, 1]
+        strides: [2, 1, 1, 2, 1, 2]
+        patch: True
         use_attention: True
         attention_loc: 3
         l1: 0.01

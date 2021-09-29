@@ -38,8 +38,8 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     """
 
     @typechecked
-    def __init__(self, layer: tf.keras.layers, power_iterations: int = 1, **kwargs):
-        super().__init__(layer, **kwargs)
+    def __init__(self, layer: tf.keras.layers, power_iterations: int = 1, name = "_sn_u", **kwargs):
+        super().__init__(layer,name = name,  **kwargs)
         if power_iterations <= 0:
             raise ValueError(
                 "`power_iterations` should be greater than zero, got "
@@ -47,12 +47,12 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
             )
         self.power_iterations = power_iterations
         self._initialized = False
-
+        
     def build(self, input_shape):
         """Build `Layer`"""
         super().build(input_shape)
         input_shape = tf.TensorShape(input_shape)
-        self.input_spec = tf.keras.layers.InputSpec(shape=[None] + input_shape[1:])
+        self.input_spec = tf.keras.layers.InputSpec(shape=[None] + input_shape[1:], name = self.name + "_spec")
 
         if hasattr(self.layer, "kernel"):
             self.w = self.layer.kernel
@@ -70,7 +70,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
             shape=(1, self.w_shape[-1]),
             initializer=tf.initializers.TruncatedNormal(stddev=0.02),
             trainable=False,
-            name="sn_u",
+            name=self.name + "_sn_u",
             dtype=self.w.dtype,
         )
 
@@ -116,12 +116,13 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
 
     
 class GumbelSoftmax(Layer):
-    def __init__(self,temperature = 0.5, *args, **kwargs):
-        super(GumbelSoftmax,self).__init__()
+    def __init__(self,temperature = 0.5, name = "gumbel", *args, **kwargs):
+        super(GumbelSoftmax,self).__init__(name = name)
         
+
         # Temperature
-        self.tau = tf.Variable(temperature, dtype=tf.float32, trainable=False)
-        self.smx = Softmax()
+        self.tau = tf.Variable(temperature, dtype=tf.float32, trainable=False, name = self.name + "tau")
+        self.smx = Softmax(name = self.name + "smx")
     
     def call(self, logits):
         U = tf.random.uniform(tf.shape(logits), minval=0, maxval=1, dtype=tf.dtypes.float32)
@@ -182,19 +183,18 @@ class Conv1DTranspose(Layer):
         return config
 
 class SelfAttentionSN(Layer):
-    def __init__(self,  filters ):
-        super(SelfAttentionSN, self).__init__()
-        
-        self.kernel_querry = SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.kernel_key    = SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.kernel_value  = SpectralNormalization(tf.keras.layers.Dense(filters))
-        self.out           = SpectralNormalization(tf.keras.layers.Dense(filters))
+    def __init__(self,  filters , name = "attention"):
+        super(SelfAttentionSN, self).__init__(name = name)
+        self.kernel_querry = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_query"), name = self.name + "_atte_sn_0")
+        self.kernel_key    = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_key"), name = self.name + "_atte_sn_1")
+        self.kernel_value  = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_value"), name = self.name + "_atte_sn_2")
+        self.out           = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_atte_out"), name = self.name + "_atte_sn_3")
         self.num_heads = 8
         self.filters = filters
         self.depth = filters // self.num_heads
-        self.gamma = self.add_weight(name='gamma', initializer=tf.keras.initializers.Constant(value=1), trainable=True)
-        self.dout = Dropout(0.3)
-        self.norm = LayerNormalization(axis = -1, epsilon = 1e-6)
+        self.gamma = self.add_weight( initializer=tf.keras.initializers.Constant(value=1), trainable=True, name = self.name + "_attention_gamma")
+        self.dout = Dropout(0.3, name = self.name + "_attention_dout")
+        self.norm = LayerNormalization(axis = -1, epsilon = 1e-6, name = self.name + "_attention_norm")
         
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).

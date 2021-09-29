@@ -5,7 +5,7 @@ from tensorflow.keras.layers import Layer, Conv1D, BatchNormalization, LayerNorm
 from tensorflow.keras.regularizers import L1L2
 from typeguard import typechecked
 
-from layers_new import SpectralNormalization
+from utils.layers_new import SpectralNormalization
 
 def linear(x):
     return x
@@ -89,8 +89,8 @@ class ResModPreAct(Layer):
     No Normalization is applied to the output     
     
     """
-    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.0, l2=0.0, rate = 0.2, use_bias=False, spectral_norm=False):
-        super(ResModPreAct, self).__init__()
+    def __init__(self, filters, size, strides=1, dilation=1, constrains = None, l1=0.0, l2=0.0, rate = 0.2, use_bias=False, spectral_norm=False, name = "res"):
+        super(ResModPreAct, self).__init__(name = name)
         self.filters = filters
         self.kernel  = size
         self.strides = strides
@@ -101,7 +101,7 @@ class ResModPreAct(Layer):
         self.rate = rate
         self.use_bias = use_bias
         if spectral_norm:
-            self.weight_norm = SpectralNormalization 
+            self.norm = SpectralNormalization 
         else:
             self.norm = linear
  
@@ -110,20 +110,23 @@ class ResModPreAct(Layer):
                                     dilation_rate = self.dilation,
                                     padding = 'same',
                                     use_bias = self.use_bias,
-                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2),
+                                    name = self.name + "_conv_1"), name = self.name + "_conv_1_norm")
         
         self.conv2 = self.norm(Conv1D(self.filters,
                                     self.kernel,
                                     dilation_rate = self.dilation,
                                     padding = 'same',
                                     use_bias = self.use_bias,
-                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2),
+                                    name = self.name + "_conv_2"), name = self.name + "_conv_2_norm")
                     
             
         self.conv  = self.norm(Conv1D(self.filters, 1,
                                     padding = 'same',
                                     use_bias = False,
-                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+                                    kernel_regularizer = L1L2(l1=self.l1, l2=self.l2),
+                                    name = self.name + "_conv_3"), name = self.name + "_conv_3_norm")
         if self.strides > 1:
             self.conv3 = self.norm(Conv1D(self.filters,
                                         self.kernel,
@@ -131,10 +134,12 @@ class ResModPreAct(Layer):
                                         strides = self.strides,
                                         padding = 'same',
                                         use_bias = self.use_bias,
-                                        kernel_regularizer = L1L2(l1=self.l1, l2=self.l2)))
+                                        kernel_regularizer = L1L2(l1=self.l1, l2=self.l2),
+                                        name = self.name + "_conv_4"), name = self.name + "_conv_4_norm")
+    
         self.add  = Add()
-        self.dout = Dropout(self.rate)
-        self.act  = LeakyReLU(0.2)
+        self.dout = Dropout(self.rate, name = self.name + "_dropout")
+        self.act  = LeakyReLU(0.2, name = self.name + "_activation")
 
 
 
@@ -162,7 +167,7 @@ class ResModPreAct(Layer):
             'dilation': self.dilation,
             'l1': self.l1,
             'l2': self.l2,
-            'rate': self.rate
+            'rate': self.rate,
             'norm': self.norm,
             'use_bias': self.use_bias
             
