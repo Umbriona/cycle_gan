@@ -168,7 +168,7 @@ class Classifier_reg1(Model):
         return self.outa(x)
     
 class Classifier_reg(Model):
-    def __init__(self, config, name):
+    def __init__(self, config, name="Regression_classifier"):
         super(Classifier_reg, self).__init__()
         self.use_temporal_enc = config['use_global_pos'] 
         self.n_layers = config['n_layers']
