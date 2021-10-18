@@ -218,7 +218,7 @@ class ResMod_PreAct(Layer):
     def call(self, x):
         x_in = self.conv(x)
         x = self.conv1(self.act(x))
-        x = self.conv2(self.act(self.norm1(x))
+        x = self.conv2(self.act(self.norm1(x)))
         x = self.norm2(x)
         x = self.add([x, x_in])
         if self.strides:
