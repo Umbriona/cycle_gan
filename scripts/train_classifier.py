@@ -67,13 +67,18 @@ def main(args):
     model.summary()
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
-    
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath=config['Classifier']['file'],
+    save_weights_only=True,
+    monitor='val_accuracy',
+    mode='max',
+    save_best_only=True)
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
     x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE) 
     
-    history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop])
+    history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop, model_checkpoint_callback])
     
-    model.save_weights(config['Classifier']['file'])
+    #model.save_weights(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
     df.to_csv(args.output)
     
