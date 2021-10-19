@@ -292,6 +292,17 @@ def _parse_function_onehot(item, key = "class"):
     item = (tf.one_hot(item['seq'],21, off_value=0.0), item[key])
     return item
 
+def _parse_function_onehot_cycle(item, key = "class", model = "classifier"):
+    feature_description = {
+    key : tf.io.FixedLenFeature([], tf.float32, default_value = 0.0),
+    'seq': tf.io.FixedLenFeature([512], tf.int64, default_value = -np.ones((512,)))
+}
+  # Parse the input `tf.train.Example` proto using the dictionary above.
+    item = tf.io.parse_single_example(item, feature_description)
+    y = tf.constant([0], dtype=tf.int64)
+    item = (tf.one_hot(item['seq'],21, off_value=0.0), item[key], tf.reshape(tf.cast(tf.math.greater_equal(item['seq'], y), tf.float32), shape=(512,1)))
+    return item
+
 def parse_upsample(name):
     up_sample = int(name.split('.')[0].split('_')[-1])
     return up_sample
@@ -301,7 +312,7 @@ def parse_ofset(name):
     temp_high= int(name.split('_')[1])
     return temp_high - temp_low
     
-def load_data(config):
+def load_data(config, model = "classifier"):
     # get file names and paths
     base_dir = config["base_dir"]
     files_train = os.path.join(base_dir, config["train_dir"])
@@ -321,10 +332,12 @@ def load_data(config):
     tfdata_train = tfdata_train.cache()
     tfdata_val = tfdata_val.cache()
     
-    tfdata_train = tfdata_train.map(_parse_function_onehot, num_parallel_calls = tf.data.AUTOTUNE)
-    tfdata_val = tfdata_val.map(_parse_function_onehot, num_parallel_calls = tf.data.AUTOTUNE)
-    
-
+    if model == "classifier":
+        tfdata_train = tfdata_train.map(_parse_function_onehot, num_parallel_calls = tf.data.AUTOTUNE)
+        tfdata_val = tfdata_val.map(_parse_function_onehot, num_parallel_calls = tf.data.AUTOTUNE)
+    else:
+        tfdata_train = tfdata_train.map(_parse_function_onehot_cycle, num_parallel_calls = tf.data.AUTOTUNE)
+        tfdata_val = tfdata_val.map(_parse_function_onehot_cycle, num_parallel_calls = tf.data.AUTOTUNE)
     
     tfdata_train = tfdata_train.shuffle(int(1e5), reshuffle_each_iteration=True)
     tfdata_val = tfdata_val.shuffle(int(1e5), reshuffle_each_iteration=True)

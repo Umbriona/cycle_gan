@@ -17,8 +17,10 @@ from tensorflow.keras import layers
 from matplotlib import pyplot as plt
 
 from utils.loaders import load_data, load_optimizers, load_metrics, load_losses
-from utils import models_new
+from utils import models_cyclegan as models_gan
+from utils import models_classifyer as models_class
 from utils import callbacks
+from utils import preprocessing as pre
 
 
 
@@ -34,7 +36,7 @@ parser.add_argument('-g', '--gpu', type=str, choices=['0', '1','0,1'], default='
 args = parser.parse_args()
 
 
-def train(config, model, data, time):
+def train(config, model, data, time, classifyer):
     print(model.lambda_cycle)
     #file writers
     result_dir = os.path.join(config['Results']['base_dir'],time)
@@ -51,6 +53,11 @@ def train(config, model, data, time):
 
     temp_diff_summary_x = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_x'))
     temp_diff_summary_y = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_y'))
+    
+    temp_diff_summary_hist_x = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_hist_x'))
+    temp_diff_summary_hist_y = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_hist_y'))
+    
+
     
     metrics = load_metrics(config['CycleGan']['Metrics'])
 
@@ -82,7 +89,6 @@ def train(config, model, data, time):
             tf.keras.backend.set_value(model.F.gms.tau,    max(0.3, np.exp(-0.01*epoch)))
                 
         for step, x in enumerate(zip(batches_x,batches_y)):
-            
             losses_, logits = model.train_step( batch_data = x)
 
             metrics['loss_G'](losses_["Gen_G_loss"]) 
@@ -92,31 +98,63 @@ def train(config, model, data, time):
             metrics['loss_cycle_y'](losses_["Cycle_Y_loss"])
             metrics['loss_disc_x'](losses_["Disc_Y_loss"])
 
-            metrics['acc_x'](x[0][1], logits[0][0], x[0][2])
-            metrics['acc_y'](x[1][1], logits[0][1], x[1][2])
-            metrics['cycled_acc_x'](x[0][1], logits[1][0], x[0][2])
-            metrics['cycled_acc_y'](x[1][1], logits[1][1], x[1][2])
+            metrics['acc_x'](x[0][0], logits[0][0], x[0][2])
+            metrics['acc_y'](x[1][0], logits[0][1], x[1][2])
+            metrics['cycled_acc_x'](x[0][0], logits[1][0], x[0][2])
+            metrics['cycled_acc_y'](x[1][0], logits[1][1], x[1][2])
         
         
-        if epoch % 20 == 0 and epoch > 0:
+        if epoch % 10 == 0 :
             # Save model
-            model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
+            model.save_gan(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
             
         if epoch % 1 == 0 or epoch == config['CycleGan']['epochs']-1:
-            val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
-            val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
+            val_x = data['meso_val'].batch(32, drop_remainder=False)
+            val_y = data['thermo_val'].batch(32, drop_remainder=False)
+            
+
             
             for i, x in enumerate(zip(val_x, val_y)):
-                diff_x, diff_y = model.validate_step(x)
-
-                with temp_diff_summary_x.as_default():
-                    tf.summary.scalar('temp_diff', diff_x, step=epoch, description = 'temp_diff_x')
-                with temp_diff_summary_y.as_default():
-                    tf.summary.scalar('temp_diff', diff_y, step=epoch, description = 'temp_diff_y')
+                fake_y = model.G(x[0][0])
+                fake_x = model.F(x[1][0])
                 
+                # mask fakes
+                mask_x = tf.repeat(x[0][2], 21, axis=-1)
+                mask_y = tf.repeat(x[1][2], 21, axis=-1)
+                
+                fake_y = tf.math.multiply(fake_y, mask_x)
+                fake_x = tf.math.multiply(fake_x, mask_y)
+                
+                temp_real_x = classifyer.predict(x[0][0])
+                temp_fake_y = classifyer.predict(fake_y)
+                temp_diff_x = tf.math.subtract(temp_fake_y,temp_real_x)
+                
+                temp_real_y = classifyer.predict(x[1][0])
+                temp_fake_x = classifyer.predict(fake_x)
+                temp_diff_y = tf.math.subtract(temp_fake_x,temp_real_y)
+                
+                if i==0:
+                    stack_temp_diff_y = temp_diff_y
+                    stack_temp_diff_x = temp_diff_x
+                else:
+                    stack_temp_diff_y = tf.concat([stack_temp_diff_y, temp_diff_y], axis=0)
+                    stack_temp_diff_x = tf.concat([stack_temp_diff_x, temp_diff_x], axis=0)
+                
+
+                
+                with temp_diff_summary_x.as_default():
+                    tf.summary.scalar('temp_diff', tf.math.reduce_mean(stack_temp_diff_x), step=epoch, description = 'temp_diff_x')
+                with temp_diff_summary_y.as_default():
+                    tf.summary.scalar('temp_diff', tf.math.reduce_mean(stack_temp_diff_x), step=epoch, description = 'temp_diff_y')
+                
+                with temp_diff_summary_hist_x.as_default():
+                    tf.summary.histogram('temp_diff_hist',stack_temp_diff_x, step=epoch)
+                with temp_diff_summary_hist_y.as_default():
+                    tf.summary.histogram('temp_diff_hist',stack_temp_diff_y, step=epoch)
+                    
         if epoch % 10 == 0:
-            val_x = data['meso_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
-            val_y = data['thermo_val'].shuffle(buffer_size = 40000).batch(32, drop_remainder=False)
+            val_x = data['meso_val'].batch(32, drop_remainder=False)
+            val_y = data['thermo_val'].batch(32, drop_remainder=False)
             for batch in zip(val_x, val_y):
                 fake_y = model.generate_step(batch)
                 break
@@ -224,20 +262,49 @@ def main():
     os.mkdir(os.path.join(result_dir,'weights'))
     
     # Load training data
-    data = load_data(config['Data'])
+    data_train_meso, data_val_meso = pre.load_data(config["Data_meso"], model="cycle_gan")
+    data_train_thermo, data_val_thermo = pre.load_data(config["Data_thermo"], model="cycle_gan")
+    data = {'meso_train': data_train_meso, 'thermo_train': data_train_thermo, 'meso_val':data_val_meso , 'thermo_val': data_val_thermo}
+    #data = load_data(config['Data'])
     
     # Callbacks
-    cb = callbacks.PCAPlot(data['thermo_train'].as_numpy_iterator(), data['meso_train'].as_numpy_iterator(), data['n_thermo_train'], data['n_meso_train'], logdir=os.path.join(config['Log']['base_dir'],time,'img')) 
+    #cb = callbacks.PCAPlot(data['thermo_train'].as_numpy_iterator(), data['meso_train'].as_numpy_iterator(), data['n_thermo_train'], data['n_meso_train'], logdir=os.path.join(config['Log']['base_dir'],time,'img')) 
     
     # Initiate model
-    model = models_new.CycleGan(config, callbacks = cb)
+    model = models_gan.CycleGan(config)
     loss_obj  = load_losses(config['CycleGan']['Losses'])
     optimizers = load_optimizers(config['CycleGan']['Optimizers'])
     model.compile(loss_obj, optimizers)
     
+    # load classifyer
+    classifyer = models_weights = ["../weights/Model1/model1_weights.h5", "../weights/Model3/model3_weights.h5", "../weights/Model5/model5_weights.h5"]
+    names = ["model1", "model2", "model3"]
+    file = "../config/Classifier/config_classifier1.yaml"
+    with open(file, 'r') as file_descriptor:
+        config_class = yaml.load(file_descriptor, Loader=yaml.FullLoader)
+    model_input = tf.keras.layers.Input(shape=(512,21))
+    model1 = models_class.Classifier_reg1(config_class['Classifier'], name = names[0])
+    model2 = models_class.Classifier_reg1(config_class['Classifier'], name = names[1])
+    model3 = models_class.Classifier_reg1(config_class['Classifier'], name = names[2])
+
+    output1 = model1(model_input)
+    output2 = model2(model_input)
+    output3 = model3(model_input)
+
+    model1.summary()
+
+    model1.load_weights("../weights/Model1/model1_weights.h5")
+    model2.load_weights("../weights/Model3/model3_weights.h5")
+    model3.load_weights("../weights/Model5/model5_weights.h5")
+
+
+    ensemble_output = tf.keras.layers.Average()([output1, output2, output3])
+    ensemble_model = tf.keras.Model(inputs=model_input, outputs=ensemble_output)
+
+    ensemble_model.summary()
     # Initiate Training
 
-    history = train(config, model, data, time)
+    history = train(config, model, data, time, classifyer = ensemble_model)
     
     #writing results
     

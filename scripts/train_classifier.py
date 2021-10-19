@@ -71,7 +71,7 @@ def main(args):
     filepath=config['Classifier']['checkpoint_filepath'],
     save_weights_only=True,
     monitor='val_loss',
-    mode='max',
+    mode='min',
     save_best_only=True)
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
     x_train = data_train.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE) 

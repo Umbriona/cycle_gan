@@ -2,7 +2,7 @@ CycleGan:
     Vocab_size: 21
     lambda_cycle: 1.00
     lambda_id: 0.5
-    epochs: 500
+    epochs: 1
     batch_size: 32
     dir: "weights/model"
     Generator:
@@ -70,7 +70,7 @@ Classifier:
 Data_meso:
     max_length: 512
     max_samples: 4000000
-    base_dir: '/data/Mesophiles'
+    base_dir: '../data/Combined_data/published/Groups_2/Mesophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 2 # How many shards to use
@@ -79,7 +79,7 @@ Data_meso:
 Data_thermo:
     max_length: 512
     max_samples: 4000000
-    base_dir: '/data/Thermophiles'
+    base_dir: '../data/Combined_data/published/Groups_2/Thermophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 2 # How many shards to use
@@ -92,3 +92,4 @@ Results:
     base_dir: "../results"
     
     
+

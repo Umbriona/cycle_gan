@@ -70,8 +70,8 @@ class CycleGan(tf.keras.Model):
         This loss is calculated on an interpolated image
         and added to the discriminator loss.
         """
-        alpha_meso = tf.random.normal([batch_size, 1, 1], 0.0, 1.0)
-        alpha_thermo = tf.random.normal([batch_size, 1, 1], 0.0, 1.0)
+        alpha_meso = tf.random.normal([32, 1, 1], 0.0, 1.0)
+        alpha_thermo = tf.random.normal([32, 1, 1], 0.0, 1.0)
         
         diff_meso = fake_y - Y_bin
         diff_thermo = fake_x - X_bin
@@ -102,33 +102,32 @@ class CycleGan(tf.keras.Model):
     @tf.function
     def train_step(self, batch_data):
 
-        _, X_bin, W_x= batch_data[0]
-        _, Y_bin, W_y= batch_data[1]
-
+        X_bin, _, W_x= batch_data[0]
+        Y_bin, _, W_y= batch_data[1]
 
         with tf.GradientTape(persistent=True) as tape:
-            _, X_bin, W_x = batch_data[0]
-            _, Y_bin, W_y= batch_data[1]
+            X_bin, _, W_x = batch_data[0]
+            Y_bin, _, W_y= batch_data[1]
             #print("X_bin", X_bin)
             
-            fake_y, _ = self.G(X_bin, training=True)
-            fake_x, _ = self.F(Y_bin, training=True)
+            fake_y = self.G(X_bin, training=True)
+            fake_x = self.F(Y_bin, training=True)
 
             # Identity mapping
-            same_x, _ = self.F(X_bin, training=True)
-            same_y, _ = self.G(Y_bin, training=True)
+            same_x = self.F(X_bin, training=True)
+            same_y = self.G(Y_bin, training=True)
             #print("same_x", same_x)
             # Cycle: x -> y -> x
-            cycled_x, _ = self.F(fake_y, training=True)
-            cycled_y, _ = self.G(fake_x, training=True)
+            cycled_x = self.F(fake_y, training=True)
+            cycled_y = self.G(fake_x, training=True)
             #print("cycled_x", cycled_x)
             
             # Discriminator output
-            disc_real_y, _ = self.D_y(Y_bin, training=True)
-            disc_fake_y, _ = self.D_y(fake_y, training=True)
-            
-            disc_real_x, _ = self.D_x(X_bin, training=True)
-            disc_fake_x, _ = self.D_x(fake_x, training=True)
+            disc_real_y = self.D_y(Y_bin, training=True)
+            disc_fake_y = self.D_y(fake_y, training=True)
+        
+            disc_real_x = self.D_x(X_bin, training=True)
+            disc_fake_x = self.D_x(fake_x, training=True)
             #print("disc_real", disc_real_y)
             #print("disc_fake", disc_fake_y)
 
@@ -185,12 +184,12 @@ class CycleGan(tf.keras.Model):
     
     @tf.function
     def validate_step(self, batch_data):
-        _, X_bin, W_x= batch_data[0]
-        _, Y_bin, W_y= batch_data[1]
+        X_bin, _, W_x= batch_data[0]
+        Y_bin, _, W_y= batch_data[1]
         
         shape = tf.shape(X_bin)
         
-        logit_x, _ = self.G(X_bin)
+        logit_x = self.G(X_bin)
 
         W_x = tf.reshape(W_x, shape=(shape[0],shape[1],1))
         W_x = tf.repeat(W_x, repeats=21, axis=2)
@@ -200,7 +199,7 @@ class CycleGan(tf.keras.Model):
         diff = tf.math.reduce_mean(tf.math.subtract(temp_real_x, temp_fake_x))
         diff_x = diff
         
-        logit_y, _ = self.F(Y_bin)
+        logit_y = self.F(Y_bin)
         W_y = tf.reshape(W_y, shape=(shape[0],shape[1],1))
         W_y = tf.repeat(W_y, repeats=21, axis=2)
         trans_y = tf.math.multiply(W_y, logit_y)
@@ -270,14 +269,28 @@ class CycleGan(tf.keras.Model):
     def generate_step(self, batch_data):
 
         
-        id_x, X_bin, W_x = batch_data[0]
-        id_y, Y_bin, W_y= batch_data[1]
+        X_bin, _, W_x = batch_data[0]
+        Y_bin, _, W_y= batch_data[1]
 
-        fake_y, _ = self.G(X_bin, training=True)
-        fake_x, _ = self.F(Y_bin, training=True)
+        fake_y = self.G(X_bin, training=True)
+        fake_x = self.F(Y_bin, training=True)
         seqs = []
 
         for seq, w in zip(list(tf.math.argmax(fake_y,axis=-1).numpy()), list(W_x.numpy())):
-              #  print("seq", seq)
-                seqs.append(pre.convert_table(seq, w))    
+                #print("seq", seq)
+                #print("mask", w)
+                #print("masked seq", seq[w==1])
+                seqs.append(pre.convert_table(seq, tf.reshape(w, shape=(512,))))    
         return seqs 
+    
+    def save_gan(self, file):
+        self.D_x.save_weights(file+"_discrim_x.h5")
+        self.D_y.save_weights(file+"_discrim_y.h5")
+        self.G.save_weights(file+"_generator_G.h5")
+        self.F.save_weights(file+"_generator_x.h5")
+    
+    def load_gan(self, file):
+        self.D_x.load_weights(file+"_discrim_x.h5")
+        self.D_y.load_weights(file+"_discrim_y.h5")
+        self.G.load_weights(file+"_generator_G.h5")
+        self.F.load_weights(file+"_generator_x.h5")
