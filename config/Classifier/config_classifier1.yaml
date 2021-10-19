@@ -17,14 +17,15 @@ Classifier:
     temporal_encode: 21
     learning_rate: 0.0001
     batch_size: 256
-    epochs: 300
-    file: "/weights"
+    epochs: 100
+    file: "/weights/Classifier/Model4/model13_weights.h5"
 Data:
     max_length: 512
     max_samples: 4000000
     base_dir: '/data'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
+    n_shards: 2 # How many shards to use
     shards: 100
 
 
