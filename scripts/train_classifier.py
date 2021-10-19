@@ -70,7 +70,7 @@ def main(args):
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath=config['Classifier']['file'],
     save_weights_only=True,
-    monitor='val_accuracy',
+    monitor='val_loss',
     mode='max',
     save_best_only=True)
     x_val = data_val.batch(config['Classifier']['batch_size'], drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
@@ -78,7 +78,7 @@ def main(args):
     
     history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop, model_checkpoint_callback])
     
-    #model.save_weights(config['Classifier']['file'])
+    model.save_weights(config['Classifier']['file'])
     df = pd.DataFrame(history.history)
     df.to_csv(args.output)
     

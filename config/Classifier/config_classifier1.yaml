@@ -25,6 +25,8 @@ Data:
     base_dir: '/data'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
+    n_shards: 2 # How many shards to use
+
     shards: 100
 
 
