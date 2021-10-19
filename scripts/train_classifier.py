@@ -68,7 +68,7 @@ def main(args):
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath=config['Classifier']['file'],
+    filepath=config['Classifier']['checkpoint_filepath'],
     save_weights_only=True,
     monitor='val_loss',
     mode='max',
