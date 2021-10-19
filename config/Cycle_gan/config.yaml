@@ -65,7 +65,7 @@ Classifier:
     temporal_encode: 21
     learning_rate: 0.0001
     batch_size: 64
-    dir: "../weights"
+    dir: "/weights"
 
 Data_meso:
     max_length: 512
@@ -86,9 +86,9 @@ Data_thermo:
     shards: 100
     
 Log:
-    base_dir: "../log"
+    base_dir: "/log"
     img: img 
 Results:
-    base_dir: "../results"
+    base_dir: "/results"
     
     

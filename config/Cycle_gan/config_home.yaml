@@ -2,7 +2,7 @@ CycleGan:
     Vocab_size: 21
     lambda_cycle: 1.00
     lambda_id: 0.5
-    epochs: 1
+    epochs: 11
     batch_size: 32
     dir: "weights/model"
     Generator:
