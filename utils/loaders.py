@@ -77,6 +77,8 @@ def load_metrics(config):
     metrics['loss_F']       = tf.keras.metrics.Mean('loss_F', dtype=tf.float32)
     metrics['loss_cycle_y'] = tf.keras.metrics.Mean('loss_cycle_y', dtype=tf.float32)
     metrics['loss_disc_x']  = tf.keras.metrics.Mean('loss_disc_x', dtype=tf.float32)
+    metrics['loss_id_x']  = tf.keras.metrics.Mean('loss_id_x', dtype=tf.float32)
+    metrics['loss_id_y']  = tf.keras.metrics.Mean('loss_id_y', dtype=tf.float32)
 
     metrics['temp_diff_x']  = tf.keras.metrics.Mean('temp_diff_x', dtype=tf.float32)
     metrics['temp_diff_y']  = tf.keras.metrics.Mean('temp_diff_y', dtype=tf.float32)
@@ -85,4 +87,6 @@ def load_metrics(config):
     metrics['cycled_acc_x'] = tf.keras.metrics.CategoricalAccuracy()
     metrics['acc_y']        = tf.keras.metrics.CategoricalAccuracy()
     metrics['cycled_acc_y'] = tf.keras.metrics.CategoricalAccuracy()
+    metrics['id_acc_y'] = tf.keras.metrics.CategoricalAccuracy()
+    metrics['id_acc_x'] = tf.keras.metrics.CategoricalAccuracy()
     return metrics

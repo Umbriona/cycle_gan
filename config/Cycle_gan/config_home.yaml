@@ -1,8 +1,8 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 1.00
+    lambda_cycle: 10.00
     lambda_id: 0.5
-    epochs: 11
+    epochs: 500
     batch_size: 32
     dir: "weights/model"
     Generator:
@@ -29,22 +29,22 @@ CycleGan:
         vocab_size: 21
         filters: [64, 64, 128, 128, 256, 256]
         kernels: [9, 9, 9, 9, 9, 9]
-        dilations: [1, 2, 2, 1, 2, 1]
-        strides: [2, 1, 1, 2, 1, 2]
-        patch: True
+        dilations: [2, 2, 2, 2, 2, 1]
+        strides: [2, 2, 2, 2, 1, 1]
+        patch: False
         use_attention: True
         attention_loc: 3
         l1: 0.01
         l2: 0.01
         rate: 0.2
     Losses:
-        loss: Non-Reducing # Wasserstein #Mse #Hinge #Non-Reducing
+        loss: Wasserstein # Wasserstein #Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
-        learning_rate_discriminator: 0.0002
+        learning_rate_discriminator: 0.00002
         beta_1_discriminator: 0.5
         optimizer_generator: Adam
-        learning_rate_generator: 0.0001
+        learning_rate_generator: 0.00001
         beta_1_generator: 0.5         
     Metrics:
 Classifier:

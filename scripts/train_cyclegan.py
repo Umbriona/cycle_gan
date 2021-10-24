@@ -50,6 +50,9 @@ def train(config, model, data, time, classifyer):
 
     X_c_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'X_c'))
     Y_c_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'Y_c'))
+    
+    X_id_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'X_id'))
+    Y_id_summary_writer = tf.summary.create_file_writer(os.path.join(base_dir,'Y_id'))
 
     temp_diff_summary_x = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_x'))
     temp_diff_summary_y = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_y'))
@@ -57,7 +60,9 @@ def train(config, model, data, time, classifyer):
     temp_diff_summary_hist_x = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_hist_x'))
     temp_diff_summary_hist_y = tf.summary.create_file_writer(os.path.join(base_dir,'temp_diff_hist_y'))
     
-
+    
+    loss_writer_id = tf.summary.create_file_writer(os.path.join(base_dir,'loss_param_id'))
+    loss_writer_cycle = tf.summary.create_file_writer(os.path.join(base_dir,'loss_param_cycle'))
     
     metrics = load_metrics(config['CycleGan']['Metrics'])
 
@@ -85,8 +90,8 @@ def train(config, model, data, time, classifyer):
         
         #Anneal schedule for gumbel
         if config['CycleGan']['Generator']['use_gumbel']:
-            tf.keras.backend.set_value(model.G.gms.tau,    max(0.3, np.exp(-0.01*epoch)))
-            tf.keras.backend.set_value(model.F.gms.tau,    max(0.3, np.exp(-0.01*epoch)))
+            tf.keras.backend.set_value(model.G.gms.tau,    max(0.2, np.exp(-0.01*epoch)))
+            tf.keras.backend.set_value(model.F.gms.tau,    max(0.2, np.exp(-0.01*epoch)))
                 
         for step, x in enumerate(zip(batches_x,batches_y)):
             losses_, logits = model.train_step( batch_data = x)
@@ -97,16 +102,20 @@ def train(config, model, data, time, classifyer):
             metrics['loss_F'](losses_["Gen_F_loss"]) 
             metrics['loss_cycle_y'](losses_["Cycle_Y_loss"])
             metrics['loss_disc_x'](losses_["Disc_Y_loss"])
+            metrics['loss_id_x'](losses_["Id_X_loss"])
+            metrics['loss_id_y'](losses_["Id_Y_loss"])
 
             metrics['acc_x'](x[0][0], logits[0][0], x[0][2])
             metrics['acc_y'](x[1][0], logits[0][1], x[1][2])
             metrics['cycled_acc_x'](x[0][0], logits[1][0], x[0][2])
             metrics['cycled_acc_y'](x[1][0], logits[1][1], x[1][2])
+            metrics['id_acc_x'](x[0][0], logits[2][0], x[0][2])
+            metrics['id_acc_y'](x[1][0], logits[2][1], x[1][2])
         
-        
-        if epoch % 10 == 0 :
+        #  ((fake_y, fake_x),(cycled_x, cycled_y), (same_x, same_y))
+        #if epoch % 10 == 0 :
             # Save model
-            model.save_gan(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
+            # model.save_gan(os.path.join(result_dir,'weights','cycle_gan_model_{}'.format(epoch)))
             
         if epoch % 1 == 0 or epoch == config['CycleGan']['epochs']-1:
             val_x = data['meso_val'].batch(32, drop_remainder=False)
@@ -145,7 +154,7 @@ def train(config, model, data, time, classifyer):
                 with temp_diff_summary_x.as_default():
                     tf.summary.scalar('temp_diff', tf.math.reduce_mean(stack_temp_diff_x), step=epoch, description = 'temp_diff_x')
                 with temp_diff_summary_y.as_default():
-                    tf.summary.scalar('temp_diff', tf.math.reduce_mean(stack_temp_diff_x), step=epoch, description = 'temp_diff_y')
+                    tf.summary.scalar('temp_diff', tf.math.reduce_mean(stack_temp_diff_y), step=epoch, description = 'temp_diff_y')
                 
                 with temp_diff_summary_hist_x.as_default():
                     tf.summary.histogram('temp_diff_hist',stack_temp_diff_x, step=epoch)
@@ -162,7 +171,8 @@ def train(config, model, data, time, classifyer):
                 print(seq[:100])
             pass
 
-        print("tau", model.G.gms.tau)
+        print("G tau", tf.keras.backend.get_value(model.G.gms.tau))
+        print("F tau", tf.keras.backend.get_value(model.G.gms.tau))
         if args.verbose:    
             print("Epoch: %d Loss_G: %2.4f Loss_F: %2.4f Loss_cycle_X: %2.4f Loss_cycle_Y: %2.4f Loss_D_Y: %2.4f Loss_D_X %2.4f tau %1.4f" % 
               (epoch, float(metrics['loss_G'].result()),
@@ -182,9 +192,9 @@ def train(config, model, data, time, classifyer):
         if float(metrics['acc_x'].result()) > 0.8:
             lambda_cycle = tf.keras.backend.get_value(model.lambda_cycle)
             lambda_id = tf.keras.backend.get_value(model.lambda_id)
-            tf.keras.backend.set_value(model.lambda_id,  lambda_id * 0.0)
+            tf.keras.backend.set_value(model.lambda_id,  lambda_id * 0.5)
             print(lambda_id)
-            tf.keras.backend.set_value(model.lambda_cycle, lambda_cycle *0.7)
+            #tf.keras.backend.set_value(model.lambda_cycle, lambda_cycle *0.7)
 
                     
         elif float(metrics['acc_x'].result()) < 0.7:
@@ -212,7 +222,19 @@ def train(config, model, data, time, classifyer):
         with Y_c_summary_writer.as_default():
             tf.summary.scalar('loss', metrics['loss_cycle_y'].result(), step = epoch, description = 'Y cycle')
             tf.summary.scalar('acc', metrics['cycled_acc_y'].result(), step = epoch, description = 'Y cycle' )
+            
+        with X_id_summary_writer.as_default(): 
+            tf.summary.scalar('loss', metrics['loss_id_x'].result(), step = epoch, description = 'X Id')
+            tf.summary.scalar('acc', metrics['id_acc_x'].result(), step = epoch, description = 'X Id' )         
+        with Y_id_summary_writer.as_default():
+            tf.summary.scalar('loss', metrics['loss_id_y'].result(), step = epoch, description = 'Y Id')
+            tf.summary.scalar('acc', metrics['id_acc_y'].result(), step = epoch, description = 'Y Id' )
 
+        with loss_writer_cycle.as_default():
+            tf.summary.scalar('lambda', tf.keras.backend.get_value(model.lambda_cycle),step = epoch, description = 'Cycle')
+        with loss_writer_id.as_default():
+            tf.summary.scalar('lambda', tf.keras.backend.get_value(model.lambda_id),step = epoch, description = 'Id')
+            
         # Save history object
         history["Gen_G_loss"].append(metrics['loss_G'].result().numpy())
         history["Cycle_X_loss"].append(metrics['loss_cycle_x'].result().numpy())
@@ -233,11 +255,15 @@ def train(config, model, data, time, classifyer):
         metrics['loss_F'].reset_states() 
         metrics['loss_cycle_y'].reset_states()
         metrics['loss_disc_x'].reset_states()
+        metrics['loss_id_y'].reset_states()
+        metrics['loss_id_x'].reset_states()
 
         metrics['acc_x'].reset_states()
         metrics['acc_y'].reset_states()
         metrics['cycled_acc_x'].reset_states()
         metrics['cycled_acc_y'].reset_states()
+        metrics['id_acc_y'].reset_states()
+        metrics['id_acc_x'].reset_states()
     
     return history
 

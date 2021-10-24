@@ -112,7 +112,17 @@ class CycleGan(tf.keras.Model):
             
             fake_y = self.G(X_bin, training=True)
             fake_x = self.F(Y_bin, training=True)
-
+            
+            #Apply mask
+            mask_x = tf.repeat(W_x, 21, axis=-1)
+            mask_y = tf.repeat(W_y, 21, axis=-1)
+                
+            fake_y = tf.math.multiply(fake_y, mask_x)
+            fake_x = tf.math.multiply(fake_x, mask_y)
+            
+            #print("Fake y", fake_y)
+            #print("Fake x", fake_x)
+            
             # Identity mapping
             same_x = self.F(X_bin, training=True)
             same_y = self.G(Y_bin, training=True)
@@ -125,11 +135,13 @@ class CycleGan(tf.keras.Model):
             # Discriminator output
             disc_real_y = self.D_y(Y_bin, training=True)
             disc_fake_y = self.D_y(fake_y, training=True)
+            #print("disc_real x", disc_real_x)
+            #print("disc_fake x", disc_fake_x)
         
             disc_real_x = self.D_x(X_bin, training=True)
             disc_fake_x = self.D_x(fake_x, training=True)
-            #print("disc_real", disc_real_y)
-            #print("disc_fake", disc_fake_y)
+            #print("disc_real y", disc_real_y)
+            #print("disc_fake y", disc_fake_y)
 
             gen_G_loss = self.generator_loss_fn(disc_fake_y)
             gen_F_loss = self.generator_loss_fn(disc_fake_x)
@@ -151,9 +163,18 @@ class CycleGan(tf.keras.Model):
             
             # Discriminator loss
             gp_y, gp_x = self.gradient_penalty(fake_y, Y_bin, fake_x, X_bin)
+            #print("gp_y", gp_y)
+            #print("gp_x", gp_x)
             loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y) + gp_y * 10
             loss_D_x = self.discriminator_loss_fn(disc_real_x, disc_fake_x) + gp_x * 10
+            
+            #print("disc_real x", disc_real_x)
+            #print("disc_fake x", disc_fake_x)
+            #print("disc_real y", disc_real_y)
+            #print("disc_fake y", disc_fake_y)
             #print('total loss D_X', loss_D_x)
+            #print('total loss D_Y', loss_D_y)
+            
             
         grads_G_gen = tape.gradient(tot_loss_G, self.G.trainable_variables)
         grads_F_gen = tape.gradient(tot_loss_F, self.F.trainable_variables)
@@ -178,9 +199,9 @@ class CycleGan(tf.keras.Model):
             "Disc_X_loss": loss_D_x,
             "Gen_F_loss": gen_F_loss,
             "Cycle_Y_loss": gen_cycle_y_loss,
-            "Id_Y_loss": id_G_loss,
+            "Id_Y_loss": id_F_loss,
             "Disc_Y_loss": loss_D_y
-        }, ((fake_y, fake_x),(cycled_x, cycled_y))
+        }, ((fake_y, fake_x),(cycled_x, cycled_y), (same_x, same_y))
     
     @tf.function
     def validate_step(self, batch_data):
