@@ -5,6 +5,7 @@ import tensorflow_addons as tfa
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv1D, Dense, Flatten, Activation, Embedding, Input, LeakyReLU, LayerNormalization, BatchNormalization, Softmax, Dropout, Concatenate
 from utils.layers_new import SelfAttention, SelfAttentionSN, ResMod, GumbelSoftmax, ResModPreActSN
+from utils.layers_residual import residual_mod
 from utils import preprocessing as pre
 
 class Classifier_reg1(Model):
@@ -364,3 +365,78 @@ class Classifier_class(Model):
         x = self.out1(x)
         return self.outa(x)
 
+
+def get_classifier(config, vocab):
+    # Input layer
+    model_input = tf.keras.layers.Input(shape=(512,21))
+    
+    # Parameters
+    n_layers = config['n_layers']
+    down_sample = config['down_sample']
+    l1 = config['l1']
+    l2 = config['l2']
+    atte_loc = config['attention_loc']
+    use_atte = config['use_attention']
+    filters = config['filters']
+    kernels = config['kernels']
+    dilation = config['dilations']
+    strides = config['strides']
+    norm=config['norm']
+
+    projection = Dense(64,activation = None, use_bias = False,kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2))
+    
+    att = SelfAttention(filters[atte_loc])
+    filters_down = [64,128,128,256,256]
+    down = [Conv1D(filters_down[i], 9,
+             strides=2,
+             padding="same",
+             activation = "relu",
+             kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2)) for i in range(down_sample)]
+    
+    conv1 = Conv1D(filters_down[0], 9, padding = 'same', activation = "relu")
+    outconv1 = Conv1D(filters_down[-1], 9, padding = 'same', activation = "relu")
+    out = Dense(1, activation="linear")
+      
+    res = [residual_mod(filters[i],
+                        kernels[i],
+                        dilation=dilation[i],
+                        l1=l1,
+                        l2=l2,
+                        use_dout = False,
+                        use_bias=False,
+                        norm=norm,
+                        sn = False,
+                        act="ReLU") for i in range(n_layers)]
+
+    # Normalisations
+    if norm == "Layer":
+        norm_up_down = [LayerNormalization(axis = -1, epsilon = 1e-6) for i in range(down_sample+1)]
+    elif norm == "Batch":
+        norm_up_down = [BatchNormalization() for i in range(down_sample*2)]
+    elif norm == "Instance":
+        norm_up_down = [tfa.layers.InstanceNormalization() for i in range(down_sample*2)]
+
+    pool = tf.keras.layers.GlobalAveragePooling1D(data_format='channels_last')
+
+    x = model_input
+    x = projection(x)
+           
+    x = conv1(x)
+
+    down_count=0       
+    for i in range(n_layers):
+        x_out  = res[i](x)
+        x = tf.keras.layers.Add()([x_out, x])
+        if i == atte_loc and use_atte:
+            x = att(x)[0]
+        if 2 == strides[i]:
+            x = down[down_count](x)
+            x = norm_up_down[down_count](x)
+            down_count+=1
+
+    x = outconv1(x)
+    x = norm_up_down[down_count](x)
+    x = pool(x)
+    x = out(x)
+    model = tf.keras.Model(inputs=model_input, outputs=x)
+    return model

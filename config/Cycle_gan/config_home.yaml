@@ -7,38 +7,42 @@ CycleGan:
     dir: "weights/model"
     Generator:
         type: res
-        n_layers: 6
+        n_layers: 9
         max_length: 512
         vocab_size: 21
-        filters: [64, 64, 128, 128, 256, 256]
-        kernels: [9, 9, 9, 9, 9, 9]
-        dilations: [2, 2, 2, 2, 2, 2]
-        strides: [1, 1, 1, 1, 1, 1]
+        filters: [ 256, 256, 256, 256, 256, 256, 256, 256, 256]
+        kernels: [9, 9, 9, 9, 9, 9, 9, 9, 9]
+        dilations: [2, 2, 2, 2, 2, 2, 2, 2, 2]
+        strides: [1, 1, 1, 1, 1, 1, 1, 1, 1]
         down_sample: 2
         use_attention: True
-        attention_loc: 4
+        attention_loc: 7
         use_gumbel: True
-        temperature: 0.5
+        use_spectral_norm: True
+        norm: "Layer" # "Layer" "Batch" "Instance"
+        temperature: 1.0
         l1: 0.01
         l2: 0.01
         rate: 0.2
     Discriminator:
         type: "res" # conv or res
-        n_layers: 6
+        n_layers: 9
         max_length: 512
         vocab_size: 21
-        filters: [64, 64, 128, 128, 256, 256]
-        kernels: [9, 9, 9, 9, 9, 9]
-        dilations: [2, 2, 2, 2, 2, 1]
-        strides: [2, 2, 2, 2, 1, 1]
-        patch: False
+        filters: [64, 64, 64, 128, 128, 128, 256, 256, 256]
+        kernels: [9, 9, 9, 9, 9, 9, 9, 9, 9]
+        dilations: [2, 2, 2, 2, 2, 2, 2, 2, 2]
+        strides: [2, 1, 2, 1, 2, 1, 2, 1, 1]
+        patch: True
         use_attention: True
-        attention_loc: 3
+        attention_loc: 7
+        use_spectral_norm: False
+        norm: "Instance" # "Layer" "Batch" "Instance"
         l1: 0.01
         l2: 0.01
         rate: 0.2
     Losses:
-        loss: Wasserstein # Wasserstein #Mse #Hinge #Non-Reducing
+        loss: Non-Reducing #Wasserstein # Wasserstein #Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
         learning_rate_discriminator: 0.00002

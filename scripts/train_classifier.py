@@ -59,7 +59,7 @@ def main(args):
         metric = tf.keras.metrics.BinaryAccuracy(name='binary_accuracy', dtype=None, threshold=0.5)
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
     else:
-        model = models.Classifier_reg(config['Classifier'])
+        model = models.get_classifier(config['Classifier'], 21)
         metric = coef_det_k
         loss = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.AUTO, name='mean_squared_error')
         
@@ -68,8 +68,8 @@ def main(args):
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.2, patience=20, min_lr=0.000001)
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50, min_delta = 0.01)
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath=config['Classifier']['checkpoint_filepath'],
-    save_weights_only=True,
+    filepath=args.output,
+    save_weights_only=False,
     monitor='val_loss',
     mode='min',
     save_best_only=True)
@@ -78,7 +78,7 @@ def main(args):
     
     history = model.fit(x_train, epochs=config['Classifier']['epochs'], validation_data = x_val, callbacks=[reduce_lr, early_stop, model_checkpoint_callback])
     
-    model.save_weights(config['Classifier']['file'])
+    #model.save(args.output)
     df = pd.DataFrame(history.history)
     df.to_csv(args.output)
     

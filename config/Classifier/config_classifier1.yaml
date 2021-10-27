@@ -18,15 +18,17 @@ Classifier:
     learning_rate: 0.0001
     batch_size: 256
     epochs: 100
-    file: "/weights/Classifier/Model4/model13_weights.h5"
-    checkpoint_filepath: "/weights/Classifier/Model4/checkpoint"
+    down_sample: 5 # needs to be the same as the number of 2s in strides
+    norm: "Batch" # "Layer" "Batch" "Instance"
+    file: "../weights/Classifier/Model4/model13_weights.h5"
+    checkpoint_filepath: "../weights/Classifier/Model4/checkpoint"
 Data:
     max_length: 512
     max_samples: 4000000
     base_dir: '/data'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
-    n_shards: 2 # How many shards to use
+    n_shards: 100 # How many shards to use
     shards: 100
 
 

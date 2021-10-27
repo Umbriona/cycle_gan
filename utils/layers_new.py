@@ -38,8 +38,8 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     """
 
     @typechecked
-    def __init__(self, layer: tf.keras.layers, power_iterations: int = 1, name = "_sn_u", **kwargs):
-        super().__init__(layer,name = name,  **kwargs)
+    def __init__(self, layer: tf.keras.layers, power_iterations: int = 1, **kwargs):
+        super().__init__(layer,  **kwargs)
         if power_iterations <= 0:
             raise ValueError(
                 "`power_iterations` should be greater than zero, got "
@@ -52,7 +52,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
         """Build `Layer`"""
         super().build(input_shape)
         input_shape = tf.TensorShape(input_shape)
-        self.input_spec = tf.keras.layers.InputSpec(shape=[None] + input_shape[1:], name = self.name + "_spec")
+        self.input_spec = tf.keras.layers.InputSpec(shape=[None] + input_shape[1:])
 
         if hasattr(self.layer, "kernel"):
             self.w = self.layer.kernel
@@ -181,10 +181,21 @@ class Conv1DTranspose(Layer):
             
         })
         return config
+    
+class Linear(Layer):
+    def __init__(self, obj, name):
+        super(Linear, self).__init__(name=name)
+        self.obj = obj
+    def call(x, training=True):
+        x = self.obj(x)
+        return x
 
 class SelfAttentionSN(Layer):
-    def __init__(self,  filters , name = "attention"):
+    def __init__(self,  filters, name = "attention"):
         super(SelfAttentionSN, self).__init__(name = name)
+
+            
+        
         self.kernel_querry = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_query"), name = self.name + "_atte_sn_0")
         self.kernel_key    = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_key"), name = self.name + "_atte_sn_1")
         self.kernel_value  = SpectralNormalization(tf.keras.layers.Dense(filters, name = self.name + "_value"), name = self.name + "_atte_sn_2")
@@ -194,8 +205,8 @@ class SelfAttentionSN(Layer):
         self.depth = filters // self.num_heads
         self.gamma = self.add_weight( initializer=tf.keras.initializers.Constant(value=1), trainable=True, name = self.name + "_attention_gamma")
         self.dout = Dropout(0.3, name = self.name + "_attention_dout")
-        self.norm = LayerNormalization(axis = -1, epsilon = 1e-6, name = self.name + "_attention_norm")
         
+            
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
@@ -227,7 +238,6 @@ class SelfAttentionSN(Layer):
         concat_attention = tf.reshape(attention_feature_map, (batch_size, -1, self.filters))
         concat_attention = self.dout(concat_attention, training = training)
         out = x + self.out(concat_attention)*self.gamma
-        out = self.norm(out)
         return out, attention_weights
 
     def get_config(self):
@@ -238,20 +248,21 @@ class SelfAttentionSN(Layer):
         return config
     
 class SelfAttention(Layer):
-    def __init__(self,  filters ):
-        super(SelfAttention, self).__init__()
-        
-        self.kernel_querry = tf.keras.layers.Dense(filters)
-        self.kernel_key    = tf.keras.layers.Dense(filters)
-        self.kernel_value  = tf.keras.layers.Dense(filters)
-        self.out           = tf.keras.layers.Dense(filters)
+    def __init__(self,  filters, name = "attention"):
+        super(SelfAttention, self).__init__(name = name)
+      
+        self.kernel_querry = tf.keras.layers.Dense(filters, name = self.name + "_query")
+        self.kernel_key    = tf.keras.layers.Dense(filters, name = self.name + "_key")
+        self.kernel_value  = tf.keras.layers.Dense(filters, name = self.name + "_value")
+        self.out           = tf.keras.layers.Dense(filters, name = self.name + "_atte_out")
         self.num_heads = 8
         self.filters = filters
         self.depth = filters // self.num_heads
-        self.gamma = self.add_weight(name='gamma', initializer=tf.keras.initializers.Constant(value=1), trainable=True)
-        self.dout = Dropout(0.3)
-        self.norm = LayerNormalization(axis = -1, epsilon = 1e-6)
+        self.gamma = self.add_weight( initializer=tf.keras.initializers.Constant(value=1), trainable=True, name = self.name + "_attention_gamma")
+        self.dout = Dropout(0.3, name = self.name + "_attention_dout")
         
+
+            
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
@@ -283,7 +294,6 @@ class SelfAttention(Layer):
         concat_attention = tf.reshape(attention_feature_map, (batch_size, -1, self.filters))
         concat_attention = self.dout(concat_attention, training = training)
         out = x + self.out(concat_attention)*self.gamma
-        out = self.norm(out)
         return out, attention_weights
 
     def get_config(self):
