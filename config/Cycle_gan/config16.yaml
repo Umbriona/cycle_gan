@@ -75,7 +75,7 @@ Classifier:
 Data_meso:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Mesophiles'
+    base_dir: '/data/Mesophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 4 # How many shards to use
@@ -84,7 +84,7 @@ Data_meso:
 Data_thermo:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Thermophiles'
+    base_dir: '/data/Thermophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 4 # How many shards to use
