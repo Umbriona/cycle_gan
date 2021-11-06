@@ -22,7 +22,7 @@ from utils import models_classifyer as models_class
 from utils import callbacks
 from utils import preprocessing as pre
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 
 parser = argparse.ArgumentParser(""" """)
 
@@ -313,7 +313,7 @@ def main():
     with open(args.config, 'r') as file_descriptor:
         config_str = file_descriptor.read()
     
-    result_dir = os.path.join(config['Results']['base_dir'],time)
+    result_dir = os.path.join(config['Results']['base_dir'],time + os.path.basename(args.config))
     os.mkdir(os.path.join(result_dir))
     os.mkdir(os.path.join(result_dir,'weights'))
     
@@ -359,7 +359,7 @@ def main():
     ensemble_model.summary()
     # Initiate Training
 
-    history = train(config, model, data, time, classifyer = ensemble_model)
+    history = train(config, model, data, time + os.path.basename(args.config), classifyer = ensemble_model)
     
     #writing results
     
