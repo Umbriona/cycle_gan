@@ -1,6 +1,6 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 10.00
+    lambda_cycle: 1.0
     lambda_id: 0.5
     epochs: 500
     batch_size: 32
@@ -18,8 +18,8 @@ CycleGan:
         use_attention: True
         attention_loc: 8
         use_gumbel: True
-        use_spectral_norm: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        use_spectral_norm: True
+        norm: "Instance" # "Layer" "Batch" "Instance"
         temperature: 1.0
         l1: 0.0
         l2: 0.0
@@ -37,13 +37,13 @@ CycleGan:
         use_attention: True
         attention_loc: 7
         use_spectral_norm: True
-        use_gp: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        use_gp: True
+        norm: "Instance" # "Layer" "Batch" "Instance"
         l1: 0.0
         l2: 0.0
         rate: 0.2
     Losses:
-        loss: Non-Reducing # Wasserstein #Mse #Hinge #Non-Reducing
+        loss: Wasserstein # Wasserstein #Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
         learning_rate_discriminator: 0.0002
@@ -97,4 +97,3 @@ Results:
     base_dir: "../results"
     
     
-

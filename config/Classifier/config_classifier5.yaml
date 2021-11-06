@@ -8,8 +8,8 @@ Classifier:
     kernels: [9, 9, 9, 9, 9, 9, 9, 9, 9]
     dilations: [2, 2, 2, 2, 2, 2, 2, 2, 2]
     strides: [1, 2, 2, 1, 2, 2, 1, 1, 2]
-    l1: 0.0
-    l2: 0.0
+    l1: 0.01
+    l2: 0.01
     rate: 0.2
     use_attention: True
     attention_loc: 5

@@ -7,12 +7,19 @@ class WassersteinLoss(Loss):
     def __init__(self, ):
         super(WassersteinLoss, self).__init__()
         self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)
-    def cycle_loss_fn(self, real, cycled, w):
+        
+    def cycle_loss_fn(self, real, cycled, w=None):
+        #return tf.reduce_mean(tf.abs(real - cycled))
         return self.cross( real, cycled, w)
+    
+    def identity_loss_fn(self, real, same, w = None):
+        #loss = tf.reduce_mean(tf.abs(real - same))
+        loss = self.cross( real, same, w)
+        return loss
     
     # Define the loss function for the generators
     def generator_loss_fn(self, fake):
-        return -tf.reduce_mean(fake, axis=0)
+        return -tf.reduce_mean(fake)
 
     # Define the loss function for the discriminators
     def discriminator_loss_fn(self, real, fake):
@@ -24,19 +31,31 @@ class NonReduceingLoss(Loss):
     def __init__(self, ):
         super(NonReduceingLoss, self).__init__()
         self.cross = CategoricalCrossentropy(from_logits=False, label_smoothing=0.0)#, reduction=tf.keras.losses.Reduction.NONE)
-    def cycle_loss_fn(self, real, cycled, w):
-        return self.cross( real, cycled, w) #tf.reduce_mean(self.cross( real, cycled, w), axis=0)
+        self.bin = loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        
+    def cycle_loss_fn(self, real, cycled, w=None):
+        #return tf.reduce_mean(tf.abs(real - cycled))
+        return self.cross( real, cycled, w)
+    
+    def identity_loss_fn(self, real, same, w = None):
+        #loss = tf.reduce_mean(tf.abs(real - same))
+        loss = self.cross( real, same, w)
+        return loss
     
     def generator_loss_fn(self, fake):
-        #return -tf.math.reduce_mean(tf.math.log(fake), axis=None)
-        return K.mean(K.softplus(-fake), axis=0)
+        return self.bin(tf.ones_like(fake), fake)
+        #return K.mean(K.softplus(-fake), axis=0)
     
     def discriminator_loss_fn(self, real, fake):
         #L1 = tf.reduce_mean(tf.math.log(real))
         #L2 = tf.reduce_mean(tf.math.log(tf.ones_like(fake)-fake))
-        L1 = K.mean(K.softplus(-real), axis=0)
-        L2 = K.mean(K.softplus(fake), axis=0)
-        return L1+L2#-1*(L1 + L2) #* (-1)
+        #L1 = K.mean(K.softplus(-real), axis=0)
+        #L2 = K.mean(K.softplus(fake), axis=0)
+        # total_disc_loss = L1+L2
+        real_loss = self.bin(tf.ones_like(real), real)
+        generated_loss = self.bin(tf.zeros_like(fake), fake)
+        total_disc_loss = real_loss + generated_loss
+        return total_disc_loss * 0.5
     
 class HingeLoss(Loss):
     def __init__(self ):

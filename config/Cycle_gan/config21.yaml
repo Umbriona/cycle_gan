@@ -19,7 +19,7 @@ CycleGan:
         attention_loc: 8
         use_gumbel: True
         use_spectral_norm: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        norm: "Instance" # "Layer" "Batch" "Instance"
         temperature: 1.0
         l1: 0.0
         l2: 0.0
@@ -38,12 +38,12 @@ CycleGan:
         attention_loc: 7
         use_spectral_norm: True
         use_gp: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        norm: "Instance" # "Layer" "Batch" "Instance"
         l1: 0.0
         l2: 0.0
         rate: 0.2
     Losses:
-        loss: Non-Reducing # Wasserstein #Mse #Hinge #Non-Reducing
+        loss: Wasserstein # Wasserstein #Mse #Hinge #Non-Reducing
     Optimizers:
         optimizer_discriminator: Adam
         learning_rate_discriminator: 0.0002
@@ -70,31 +70,30 @@ Classifier:
     temporal_encode: 21
     learning_rate: 0.0001
     batch_size: 64
-    dir: "../weights"
+    dir: "/weights"
 
 Data_meso:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Mesophiles'
+    base_dir: '/data/Mesophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
-    n_shards: 4 # How many shards to use
+    n_shards: 2 # How many shards to use
     shards: 100
     
 Data_thermo:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Thermophiles'
+    base_dir: '/data/Thermophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
-    n_shards: 4 # How many shards to use
+    n_shards: 2 # How many shards to use
     shards: 100
     
 Log:
-    base_dir: "../log"
+    base_dir: "/log"
     img: img 
 Results:
-    base_dir: "../results"
+    base_dir: "/results"
     
     
-

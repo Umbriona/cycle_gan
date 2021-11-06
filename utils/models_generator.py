@@ -10,6 +10,9 @@ from utils import preprocessing as pre
 
 ATTENTION_FEATURES = 512
 
+def linear(x):
+    return x
+
 def sn_up_down(config, name,down_sample, l1, l2, gms, filters_up, filters_down, vocab):
     projection = SpectralNormalization(Dense(filters_down[0],
                                      activation = None,
@@ -224,7 +227,7 @@ def get_generator(config, vocab):
     
 
     if use_spectral_norm:
-        projection = SpectralNormalization(Dense(64,activation = None, use_bias = False,kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2)))
+        projection = SpectralNormalization(Conv1D(64,9, padding='same', activation = 'relu', use_bias = True ,kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2)))
         att = SelfAttentionSN(filters[atte_loc])
         down = [SpectralNormalization(Conv1D(filters_down[i], 9,
                  strides=2,
@@ -240,7 +243,7 @@ def get_generator(config, vocab):
         outconv1 = SpectralNormalization(Conv1D(filters_up[-1],9,padding = 'same', activation = "relu"))
         outconv2 = SpectralNormalization(Conv1D(vocab, 9, padding = 'same', activation = gms))
     else:
-        projection = Dense(64,activation = None, use_bias = False,kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2))
+        projection = Conv1D(64,9, padding='same', activation = 'relu', use_bias = True ,kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2))
         att = SelfAttention(filters[atte_loc])
         down = [Conv1D(filters_down[i], 9,
                  strides=2,
@@ -254,7 +257,7 @@ def get_generator(config, vocab):
                                 kernel_regularizer = tf.keras.regularizers.L1L2(l1=l1, l2=l2)) for i in range(down_sample)]
 
         outconv1 = Conv1D(filters_up[-1],9,padding = 'same', activation = "relu")
-        outconv2 = Conv1D(vocab, 9, padding = 'same', activation = gms)
+        outconv2 = Conv1D(vocab, 9, padding = 'same', activation = None)
       
     res = [residual_mod(filters[i],
                         kernels[i],
@@ -262,32 +265,34 @@ def get_generator(config, vocab):
                         l1=l1,
                         l2=l2,
                         use_dout = False,
-                        use_bias=False,
+                        use_bias=True,
                         norm=norm,
                         sn = use_spectral_norm,
                         act="ReLU") for i in range(n_layers)]
 
     # Normalisations
     if norm == "Layer":
-        norm_up_down = [LayerNormalization(axis = -1, epsilon = 1e-6) for i in range(down_sample*2)]
+        norm_up_down = [LayerNormalization(axis = -1, epsilon = 1e-6) for i in range(down_sample*2+1)]
     elif norm == "Batch":
-        norm_up_down = [BatchNormalization() for i in range(down_sample*2)]
+        norm_up_down = [BatchNormalization() for i in range(down_sample*2+1)]
     elif norm == "Instance":
-        norm_up_down = [tfa.layers.InstanceNormalization() for i in range(down_sample*2)]
-
+        norm_up_down = [tfa.layers.InstanceNormalization() for i in range(down_sample*2+1)]
+    else:
+        norm_up_down = [linear for i in range(down_sample*2+1)]
 
             
 
     skip = []
     x = model_input
-    x = projection(x)
-           
+    x = projection(x)       
     x = norm_up_down[0](x)
+    
     x = down[0](x)
+    x = norm_up_down[1](x) 
     skip.append(x)
-           
+    
     x = down[1](x)
-    x = norm_up_down[1](x)
+    x = norm_up_down[2](x)
     skip.append(x)
 
            
@@ -298,12 +303,13 @@ def get_generator(config, vocab):
             x = att(x)[0]
     x = tf.keras.layers.Concatenate()([skip[1], x])
     x = up[0](x)
-    x = norm_up_down[2](x)
+    x = norm_up_down[3](x)
     x = tf.keras.layers.Concatenate()([skip[0], x])
     x = up[1](x)
-    x = norm_up_down[3](x)  
+    x = norm_up_down[4](x)  
     x = outconv1(x)
     x = outconv2(x)
+    x = gms(x) 
     model = tf.keras.Model(inputs=model_input, outputs=x)
     return model
     

@@ -11,11 +11,9 @@ def linear(x):
     return x
 
 class Linear(Layer):
-    def __init__(self, obj, name):
-        super(Linear, self).__init__(name=name)
-        self.obj = obj
-    def call(x):
-        x = self.obj(x)
+    def __init__(self):
+        super(Linear, self).__init__()
+    def call(self, x):
         return x
 
 class ResMod_old(Layer):
@@ -353,6 +351,83 @@ def residual_mod(filters,
         result.add(tfa.layers.InstanceNormalization())
     elif norm == "Layer":
         result.add(LayerNormalization())
+    else:
+        result.add(Linear())
+    # first activation
+    if act=="LReLU":
+        result.add(LeakyReLU())
+    else:
+        result.add(ReLU())
+        
+    # first conv
+    if use_dout:
+        result.add(Dropout(0.2))
+    if sn:
+        result.add(SpectralNormalization(Conv1D(filters,
+                      size,
+                      padding = 'same',
+                      use_bias = True,
+                      kernel_regularizer = L1L2(l1=l1, l2=l2))))
+    else:
+        result.add(Conv1D(filters,
+                      size,
+                      padding = 'same',
+                      use_bias = True,
+                      kernel_regularizer = L1L2(l1=l1, l2=l2)))
+    #second norm   
+    if norm == "Batch":
+        result.add(BatchNormalization())
+    elif norm == "Instance":
+        result.add(tfa.layers.InstanceNormalization())
+    elif norm == "Layer":
+        result.add(LayerNormalization())
+    else:
+        result.add(Linear())
+    # second activation
+    if act=="LReLU":
+        result.add(LeakyReLU())
+    else:
+        result.add(ReLU())
+        
+    # second conv
+    if use_dout:
+        result.add(Dropout(0.2))
+    if sn:
+        result.add(SpectralNormalization(Conv1D(filters,
+                      size,
+                      padding = 'same',
+                      use_bias = True,
+                      kernel_regularizer = L1L2(l1=l1, l2=l2))))
+    else:
+        result.add(Conv1D(filters,
+                      size,
+                      padding = 'same',
+                      use_bias = True,
+                      kernel_regularizer = L1L2(l1=l1, l2=l2)))
+    return result
+    
+    
+def residual_mod_new(filters,
+                 size,
+                 strides=1,
+                 dilation=1,
+                 l1=0.0, l2=0.0,
+                 rate = 0.2,
+                 use_bias=False,
+                 norm="Instance",
+                 sn = False,
+                 use_dout=False,
+                 act="LReLU", name = "res"):
+    
+    result = tf.keras.Sequential()
+    
+    # first normalisation
+    if norm == "Batch":
+        result.add(BatchNormalization())
+    elif norm == "Instance":
+        result.add(tfa.layers.InstanceNormalization())
+    elif norm == "Layer":
+        result.add(LayerNormalization())
     
     # first activation
     if act=="LReLU":
@@ -367,13 +442,13 @@ def residual_mod(filters,
         result.add(SpectralNormalization(Conv1D(filters,
                       size,
                       padding = 'same',
-                      use_bias = False,
+                      use_bias = True,
                       kernel_regularizer = L1L2(l1=l1, l2=l2))))
     else:
         result.add(Conv1D(filters,
                       size,
                       padding = 'same',
-                      use_bias = False,
+                      use_bias = True,
                       kernel_regularizer = L1L2(l1=l1, l2=l2)))
     #second norm   
     if norm == "Batch":
@@ -396,13 +471,12 @@ def residual_mod(filters,
         result.add(SpectralNormalization(Conv1D(filters,
                       size,
                       padding = 'same',
-                      use_bias = False,
+                      use_bias = True,
                       kernel_regularizer = L1L2(l1=l1, l2=l2))))
     else:
         result.add(Conv1D(filters,
                       size,
                       padding = 'same',
-                      use_bias = False,
+                      use_bias = True,
                       kernel_regularizer = L1L2(l1=l1, l2=l2)))
     return result
-    

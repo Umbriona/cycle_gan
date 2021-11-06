@@ -30,8 +30,10 @@ class CycleGan(tf.keras.Model):
         self.D_y.summary()
         
 
-        self.lambda_cycle = tf.Variable(config['CycleGan']['lambda_cycle'], dtype=tf.float32, trainable=False)
-        self.lambda_id    = tf.Variable(config['CycleGan']['lambda_id'], dtype=tf.float32, trainable=False) 
+        self.lambda_cycle_G = tf.Variable(config['CycleGan']['lambda_cycle'], dtype=tf.float32, trainable=False)
+        self.lambda_id_G    = tf.Variable(config['CycleGan']['lambda_id'], dtype=tf.float32, trainable=False) 
+        self.lambda_cycle_F = tf.Variable(config['CycleGan']['lambda_cycle'], dtype=tf.float32, trainable=False)
+        self.lambda_id_F    = tf.Variable(config['CycleGan']['lambda_id'], dtype=tf.float32, trainable=False) 
         self.add  = tf.keras.layers.Add()
         
     def compile( self, loss_obj, optimizers):
@@ -45,7 +47,7 @@ class CycleGan(tf.keras.Model):
         self.generator_loss_fn = loss_obj.generator_loss_fn
         self.discriminator_loss_fn = loss_obj.discriminator_loss_fn
         self.cycle_loss_fn = loss_obj.cycle_loss_fn
-        self.identity_loss_fn = loss_obj.cycle_loss_fn
+        self.id_loss_fn = loss_obj.identity_loss_fn
         
     def load_models(self, config):
         """Create all models that is used in cycle gan""" 
@@ -56,11 +58,16 @@ class CycleGan(tf.keras.Model):
             D_activation = 'linear'
 
         vocab = config["Vocab_size"] 
+        
+        G    = models_gen.get_generator(config["Generator"], vocab)
+        F    = models_gen.get_generator(config["Generator"], vocab)
+        D_x  = models_dis.get_discriminator(config["Discriminator"], vocab, activation=D_activation)
+        D_y  = models_dis.get_discriminator(config["Discriminator"], vocab, activation=D_activation)
 
-        G    = models_gen.Generator_res(config["Generator"], vocab, name = "Generator_thermo")
-        F    = models_gen.Generator_res(config["Generator"], vocab, name = "Generator_meso") 
-        D_x  = models_dis.Discriminator(config["Discriminator"], vocab, activation = D_activation, name = "Discriminator_thermo")
-        D_y  = models_dis.Discriminator(config["Discriminator"], vocab, activation = D_activation, name = "Discriminator_meso")
+        #G    = models_gen.Generator_res(config["Generator"], vocab, name = "Generator_thermo")
+        #F    = models_gen.Generator_res(config["Generator"], vocab, name = "Generator_meso") 
+        #D_x  = models_dis.Discriminator(config["Discriminator"], vocab, activation = D_activation, name = "Discriminator_thermo")
+        #D_y  = models_dis.Discriminator(config["Discriminator"], vocab, activation = D_activation, name = "Discriminator_meso")
 
         return G, F, D_x, D_y
     
@@ -100,69 +107,50 @@ class CycleGan(tf.keras.Model):
         return gp_y, gp_x
     
     @tf.function
-    def train_step(self, batch_data):
-
-        X_bin, _, W_x= batch_data[0]
-        Y_bin, _, W_y= batch_data[1]
+    def train_step_gp(self, batch_data):
 
         with tf.GradientTape(persistent=True) as tape:
-            X_bin, _, W_x = batch_data[0]
-            Y_bin, _, W_y= batch_data[1]
-            #print("X_bin", X_bin)
+            real_x, _, W_x = batch_data[0]
+            real_y, _, W_y= batch_data[1]
             
-            fake_y = self.G(X_bin, training=True)
-            fake_x = self.F(Y_bin, training=True)
-            
-            #Apply mask
+            # Calculate masks to perserve padding in fake sequences shape (None, 512, 1) -> (None, 512, 21)
             mask_x = tf.repeat(W_x, 21, axis=-1)
             mask_y = tf.repeat(W_y, 21, axis=-1)
-                
-            fake_y = tf.math.multiply(fake_y, mask_x)
-            fake_x = tf.math.multiply(fake_x, mask_y)
             
-            #print("Fake y", fake_y)
-            #print("Fake x", fake_x)
+            fake_y = self.G(real_x, training=True)   # G:x -> y'
+            fake_y = tf.math.multiply(fake_y, mask_x) # Preserve padding
+            cycled_x = self.F(fake_y, training=True) # Cycle: F:y' -> x
             
+            fake_x = self.F(real_y, training=True)   # F:y -> x'
+            fake_x = tf.math.multiply(fake_x, mask_y) ##Apply mask
+            cycled_y = self.G(fake_x, training=True) # Cycle: G:x' -> y        
+
             # Identity mapping
-            same_x = self.F(X_bin, training=True)
-            same_y = self.G(Y_bin, training=True)
-            #print("same_x", same_x)
-            # Cycle: x -> y -> x
-            cycled_x = self.F(fake_y, training=True)
-            cycled_y = self.G(fake_x, training=True)
-            #print("cycled_x", cycled_x)
+            same_x = self.F(real_x, training=True)  #F:x -> x
+            same_y = self.G(real_y, training=True)  #G:y -> y
             
-            # Discriminator output
-            disc_real_y = self.D_y(Y_bin, training=True)
-            disc_fake_y = self.D_y(fake_y, training=True)
-            #print("disc_real x", disc_real_x)
-            #print("disc_fake x", disc_fake_x)
-        
-            disc_real_x = self.D_x(X_bin, training=True)
+            disc_real_x = self.D_x(real_x, training=True)
+            disc_real_y = self.D_y(real_y, training=True)
+            
             disc_fake_x = self.D_x(fake_x, training=True)
-            #print("disc_real y", disc_real_y)
-            #print("disc_fake y", disc_fake_y)
+            disc_fake_y = self.D_y(fake_y, training=True)
 
             gen_G_loss = self.generator_loss_fn(disc_fake_y)
             gen_F_loss = self.generator_loss_fn(disc_fake_x)
-            #print('Loss G:', gen_G_loss)
 
-            id_G_loss = self.cycle_loss_fn(Y_bin, same_y, W_y)  * self.lambda_cycle * self.lambda_id
-            id_F_loss = self.cycle_loss_fn(X_bin, same_x, W_x)  * self.lambda_cycle * self.lambda_id
-            #print('Id loss G:', id_G_loss)
+            id_G_loss = self.id_loss_fn(real_y, same_y, W_y)  * self.lambda_cycle_G * self.lambda_id_G
+            id_F_loss = self.id_loss_fn(real_x, same_x, W_x)  * self.lambda_cycle_G * self.lambda_id_F
             
-            gen_cycle_x_loss = self.cycle_loss_fn(X_bin, cycled_x, W_x)  * self.lambda_cycle 
-            gen_cycle_y_loss = self.cycle_loss_fn(Y_bin, cycled_y, W_y)  * self.lambda_cycle 
-            #print('C loss G', gen_cycle_x_loss)
-
+            cycle_G_loss = self.cycle_loss_fn(real_y, cycled_y, W_y)  * self.lambda_cycle_G 
+            cycle_F_loss = self.cycle_loss_fn(real_x, cycled_x, W_x)  * self.lambda_cycle_G 
+            cycle_tot_loss= cycle_G_loss + cycle_F_loss
 
             # Generator total loss
-            tot_loss_G = gen_G_loss  + gen_cycle_x_loss  + id_G_loss 
-            tot_loss_F = gen_F_loss  + gen_cycle_y_loss  + id_F_loss 
-            #print('total loss G', tot_loss_G)
+            tot_loss_G = gen_G_loss  + cycle_tot_loss  + id_G_loss 
+            tot_loss_F = gen_F_loss  + cycle_tot_loss  + id_F_loss 
             
             # Discriminator loss
-            gp_y, gp_x = self.gradient_penalty(fake_y, Y_bin, fake_x, X_bin)
+            gp_y, gp_x = self.gradient_penalty(fake_y, real_y, fake_x, real_x)
             #print("gp_y", gp_y)
             #print("gp_x", gp_x)
             loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y) + gp_y * 10
@@ -194,11 +182,93 @@ class CycleGan(tf.keras.Model):
 
         return {
             "Gen_G_loss": gen_G_loss,
-            "Cycle_X_loss": gen_cycle_x_loss,
+            "Cycle_X_loss": cycle_G_loss,
             "Id_X_loss": id_G_loss,
             "Disc_X_loss": loss_D_x,
             "Gen_F_loss": gen_F_loss,
-            "Cycle_Y_loss": gen_cycle_y_loss,
+            "Cycle_Y_loss": cycle_F_loss,
+            "Id_Y_loss": id_F_loss,
+            "Disc_Y_loss": loss_D_y
+        }, ((fake_y, fake_x),(cycled_x, cycled_y), (same_x, same_y))
+    
+    @tf.function
+    def train_step(self, batch_data):
+
+        with tf.GradientTape(persistent=True) as tape:
+            real_x, _, W_x = batch_data[0]
+            real_y, _, W_y= batch_data[1]
+            
+            # Calculate masks to perserve padding in fake sequences shape (None, 512, 1) -> (None, 512, 21)
+            mask_x = tf.repeat(W_x, 21, axis=-1)
+            mask_y = tf.repeat(W_y, 21, axis=-1)
+            
+            fake_y = self.G(real_x, training=True)   # G:x -> y'
+            fake_y = tf.math.multiply(fake_y, mask_x) # Preserve padding
+            cycled_x = self.F(fake_y, training=True) # Cycle: F:y' -> x
+            
+            fake_x = self.F(real_y, training=True)   # F:y -> x'
+            fake_x = tf.math.multiply(fake_x, mask_y) ##Apply mask
+            cycled_y = self.G(fake_x, training=True) # Cycle: G:x' -> y        
+
+            # Identity mapping
+            same_x = self.F(real_x, training=True)  #F:x -> x
+            same_y = self.G(real_y, training=True)  #G:y -> y
+            
+            disc_real_x = self.D_x(real_x, training=True)
+            disc_real_y = self.D_y(real_y, training=True)
+            
+            disc_fake_x = self.D_x(fake_x, training=True)
+            disc_fake_y = self.D_y(fake_y, training=True)
+
+            gen_G_loss = self.generator_loss_fn(disc_fake_y)
+            gen_F_loss = self.generator_loss_fn(disc_fake_x)
+
+            id_G_loss = self.id_loss_fn(real_y, same_y, W_y)  * self.lambda_cycle_G * self.lambda_id_G
+            id_F_loss = self.id_loss_fn(real_x, same_x, W_x)  * self.lambda_cycle_G * self.lambda_id_F
+            
+            cycle_G_loss = self.cycle_loss_fn(real_y, cycled_y, W_y)  * self.lambda_cycle_G 
+            cycle_F_loss = self.cycle_loss_fn(real_x, cycled_x, W_x)  * self.lambda_cycle_G 
+            cycle_tot_loss= cycle_G_loss + cycle_F_loss
+            
+            # Generator total loss
+            tot_loss_G = gen_G_loss  + cycle_tot_loss  + id_G_loss 
+            tot_loss_F = gen_F_loss  + cycle_tot_loss  + id_F_loss 
+            
+            loss_D_y = self.discriminator_loss_fn(disc_real_y, disc_fake_y) 
+            loss_D_x = self.discriminator_loss_fn(disc_real_x, disc_fake_x) 
+            
+            #print("disc_real x", disc_real_x)
+            #print("disc_fake x", disc_fake_x)
+            #print("disc_real y", disc_real_y)
+            #print("disc_fake y", disc_fake_y)
+            #print('total loss D_X', loss_D_x)
+            #print('total loss D_Y', loss_D_y)
+            #print("shape msak x", tf.shape(mask_x))
+            #print("shape msak y", tf.shape(mask_y))
+                   
+        grads_G_gen = tape.gradient(tot_loss_G, self.G.trainable_variables)
+        grads_F_gen = tape.gradient(tot_loss_F, self.F.trainable_variables)
+
+        # Get the gradients for the discriminators
+        grads_disc_y = tape.gradient(loss_D_y, self.D_y.trainable_variables)
+        grads_disc_x = tape.gradient(loss_D_x, self.D_x.trainable_variables)
+
+        # Update the weights of the generators 
+        self.gen_G_optimizer.apply_gradients(zip(grads_G_gen, self.G.trainable_variables))  
+        self.gen_F_optimizer.apply_gradients(zip(grads_F_gen, self.F.trainable_variables))
+
+
+        # Update the weights of the discriminators
+        self.disc_Y_optimizer.apply_gradients(zip(grads_disc_y, self.D_y.trainable_variables))
+        self.disc_X_optimizer.apply_gradients(zip(grads_disc_x, self.D_x.trainable_variables))
+
+        return {
+            "Gen_G_loss": gen_G_loss,
+            "Cycle_X_loss": cycle_G_loss,
+            "Id_X_loss": id_G_loss,
+            "Disc_X_loss": loss_D_x,
+            "Gen_F_loss": gen_F_loss,
+            "Cycle_Y_loss": cycle_F_loss,
             "Id_Y_loss": id_F_loss,
             "Disc_Y_loss": loss_D_y
         }, ((fake_y, fake_x),(cycled_x, cycled_y), (same_x, same_y))
