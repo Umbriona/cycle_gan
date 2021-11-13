@@ -5,6 +5,7 @@ CycleGan:
     epochs: 500
     batch_size: 32
     dir: "weights/model"
+    dynamic: True
     Generator:
         type: res
         n_layers: 9

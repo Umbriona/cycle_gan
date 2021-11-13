@@ -37,7 +37,15 @@ args = parser.parse_args()
 
 
 def train(config, model, data, time, classifyer):
-
+    
+    try: 
+        print("setting dynamic to {}".format(config['CycleGan']["dynamic"]))
+        dynamic = config['CycleGan']["dynamic"]
+    except:
+        print("Setting dynamic to True")
+        dynamic = True
+        
+    print(dynamic)
     #file writers
     result_dir = os.path.join(config['Results']['base_dir'],time)
     
@@ -173,7 +181,9 @@ def train(config, model, data, time, classifyer):
                 break
             for seq in fake_y:
                 print(seq[:100])
-            pass
+            
+            model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model_epoch_{}'.format(epoch)))
+             
 
 
         if args.verbose:    
@@ -196,27 +206,28 @@ def train(config, model, data, time, classifyer):
             
         
         # set Id
-        if float(metrics['acc_x'].result()) > 0.8:
-            lambda_cycle_G = tf.keras.backend.get_value(model.lambda_cycle_G)
-            lambda_id_G = tf.keras.backend.get_value(model.lambda_id_G)    
-            tf.keras.backend.set_value(model.lambda_id_G,  max(lambda_id_G * 0.5, 0.000001))
-            tf.keras.backend.set_value(model.lambda_cycle_G,  max(lambda_cycle_G * 0.95, 0.1))
-            print("lambda id G", lambda_id_G)
-            #tf.keras.backend.set_value(model.lambda_cycle, lambda_cycle *0.7)
-        elif float(metrics['acc_x'].result()) < 0.7:  
-            tf.keras.backend.set_value(model.lambda_id_G,  config['CycleGan']['lambda_id'])
-            tf.keras.backend.set_value(model.lambda_cycle_G, config['CycleGan']['lambda_cycle'])
-                  
-        if float(metrics['acc_y'].result()) > 0.8:
-            lambda_cycle_F = tf.keras.backend.get_value(model.lambda_cycle_F)
-            lambda_id_F = tf.keras.backend.get_value(model.lambda_id_F)    
-            tf.keras.backend.set_value(model.lambda_id_F,  max(lambda_id_F * 0.5, 0.000001))
-            tf.keras.backend.set_value(model.lambda_cycle_F,  max(lambda_cycle_F * 0.95, 0.1))
-            print("Lambda id F", lambda_id_F)
-        elif float(metrics['acc_y'].result()) < 0.7:  
-            tf.keras.backend.set_value(model.lambda_id_F,  config['CycleGan']['lambda_id'])
-            tf.keras.backend.set_value(model.lambda_cycle_F, config['CycleGan']['lambda_cycle'])
-                    
+        if dynamic:
+            if float(metrics['acc_x'].result()) > 0.8:
+                lambda_cycle_G = tf.keras.backend.get_value(model.lambda_cycle_G)
+                lambda_id_G = tf.keras.backend.get_value(model.lambda_id_G)    
+                tf.keras.backend.set_value(model.lambda_id_G,  max(lambda_id_G * 0.5, 0.000001))
+                tf.keras.backend.set_value(model.lambda_cycle_G,  max(lambda_cycle_G * 0.95, 0.1))
+                print("lambda id G", lambda_id_G)
+                #tf.keras.backend.set_value(model.lambda_cycle, lambda_cycle *0.7)
+            elif float(metrics['acc_x'].result()) < 0.7:  
+                tf.keras.backend.set_value(model.lambda_id_G,  config['CycleGan']['lambda_id'])
+                tf.keras.backend.set_value(model.lambda_cycle_G, config['CycleGan']['lambda_cycle'])
+
+            if float(metrics['acc_y'].result()) > 0.8:
+                lambda_cycle_F = tf.keras.backend.get_value(model.lambda_cycle_F)
+                lambda_id_F = tf.keras.backend.get_value(model.lambda_id_F)    
+                tf.keras.backend.set_value(model.lambda_id_F,  max(lambda_id_F * 0.5, 0.000001))
+                tf.keras.backend.set_value(model.lambda_cycle_F,  max(lambda_cycle_F * 0.95, 0.1))
+                print("Lambda id F", lambda_id_F)
+            elif float(metrics['acc_y'].result()) < 0.7:  
+                tf.keras.backend.set_value(model.lambda_id_F,  config['CycleGan']['lambda_id'])
+                tf.keras.backend.set_value(model.lambda_cycle_F, config['CycleGan']['lambda_cycle'])
+
         
             
         # Write log file
@@ -365,7 +376,7 @@ def main():
     
     
     # Save model
-    model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model'))
+    model.save_weights(os.path.join(result_dir,'weights','cycle_gan_model_final'))
     # Write history obj
     df = pd.DataFrame(history)
     df.to_csv(os.path.join(result_dir,'history.csv'))

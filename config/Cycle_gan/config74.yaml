@@ -1,11 +1,11 @@
 CycleGan:
     Vocab_size: 21
-    lambda_cycle: 10.00
-    lambda_id: 0.5
+    lambda_cycle: 10.0
+    lambda_id: 0.025
     epochs: 500
     batch_size: 32
     dir: "weights/model"
-    dynamic: True
+    dynamic: False
     Generator:
         type: res
         n_layers: 9
@@ -20,7 +20,7 @@ CycleGan:
         attention_loc: 8
         use_gumbel: True
         use_spectral_norm: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        norm: "Instance" # "Layer" "Batch" "Instance"
         temperature: 1.0
         l1: 0.0
         l2: 0.0
@@ -39,7 +39,7 @@ CycleGan:
         attention_loc: 7
         use_spectral_norm: True
         use_gp: False
-        norm: "Batch" # "Layer" "Batch" "Instance"
+        norm: "Instance" # "Layer" "Batch" "Instance"
         l1: 0.0
         l2: 0.0
         rate: 0.2
@@ -76,7 +76,7 @@ Classifier:
 Data_meso:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Combined_data/published/Groups_2/Mesophiles'
+    base_dir: '/data/Mesophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 4 # How many shards to use
@@ -85,7 +85,7 @@ Data_meso:
 Data_thermo:
     max_length: 512
     max_samples: 4000000
-    base_dir: '../data/Combined_data/published/Groups_2/Thermophiles'
+    base_dir: '/data/Thermophiles'
     train_dir: 'train/*.tfrecord'
     val_dir: 'val/*.tfrecord'
     n_shards: 4 # How many shards to use
@@ -96,6 +96,3 @@ Log:
     img: img 
 Results:
     base_dir: "../results"
-    
-    
-
